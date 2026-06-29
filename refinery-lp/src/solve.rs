@@ -1,0 +1,253 @@
+//! Translate a [`Refinery`] into a flow-network LP and solve it (formulation §2–§6).
+//!
+//! Built against `microlp` (pure Rust → clean wasm32) through a small, explicit build
+//! step. The solver is touched in exactly one place (`solve_problem`), so swapping in a
+//! HiGHS-backed solver later is a localized change, not a rewrite.
+
+use crate::model::{Refinery, SpecKind};
+use microlp::{ComparisonOp, LinearExpr, OptimizationDirection, Problem, Variable};
+use std::collections::BTreeMap;
+
+/// Per-unit breakdown of how throughput was split across operating modes.
+#[derive(Debug, Clone)]
+pub struct UnitResult {
+    pub name: String,
+    pub throughput: f64,
+    pub capacity: f64,
+    pub realised_severity: f64,    // feed-weighted average; NaN if no conv modes
+    pub per_mode: Vec<(String, f64)>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProductResult {
+    pub name: String,
+    pub volume: f64,
+    pub blend: Vec<(String, f64)>, // (stream name, bbl/day into this pool)
+}
+
+#[derive(Debug, Clone)]
+pub struct SolveResult {
+    pub margin: f64, // £/day contribution margin
+    pub crude_charge: f64,
+    pub adu: UnitResult,
+    pub conversions: Vec<UnitResult>,
+    pub products: Vec<ProductResult>,
+    pub sales: Vec<(String, f64)>, // raw stream dispositions with value
+}
+
+/// Accumulates a sparse linear expression as `var-id -> coefficient`, then materialises
+/// it once against the created [`Variable`] handles. Avoids relying on duplicate-term
+/// behaviour in the solver's expression builder.
+fn build_expr(terms: &BTreeMap<usize, f64>, vars: &[Variable]) -> LinearExpr {
+    let mut e = LinearExpr::empty();
+    for (&id, &c) in terms {
+        e.add(vars[id], c);
+    }
+    e
+}
+
+const INF: f64 = f64::INFINITY;
+
+/// Build and solve the LP for `r`. Capacity overrides (unit name -> capacity) let the
+/// shadow-price routine re-solve with a perturbed bottleneck without mutating the model.
+fn solve_with(r: &Refinery, cap_override: &dyn Fn(&str) -> Option<f64>) -> SolveResult {
+    let mut p = Problem::new(OptimizationDirection::Maximize);
+    let mut vars: Vec<Variable> = Vec::new();
+    // Stream balance accumulators: stream idx -> (var-id -> signed coeff).
+    // Production positive, consumption negative; constrained == 0.
+    let mut bal: Vec<BTreeMap<usize, f64>> = vec![BTreeMap::new(); r.streams.len()];
+
+    let add_var = |p: &mut Problem, vars: &mut Vec<Variable>, obj: f64| -> usize {
+        let v = p.add_var(obj, (0.0, INF));
+        vars.push(v);
+        vars.len() - 1
+    };
+
+    // --- ADU charge variable -------------------------------------------------
+    let adu_obj = -(r.adu.crude_price + r.adu.opex);
+    let x_adu = add_var(&mut p, &mut vars, adu_obj);
+    for &(s, yld) in &r.adu.yields {
+        *bal[s].entry(x_adu).or_insert(0.0) += yld;
+    }
+
+    // --- Conversion mode variables ------------------------------------------
+    // unit index -> Vec<(mode name, var-id)>
+    let mut conv_vars: Vec<Vec<(String, usize)>> = Vec::new();
+    for unit in &r.conversions {
+        let mut modes = Vec::new();
+        for m in &unit.modes {
+            let id = add_var(&mut p, &mut vars, -m.opex);
+            // consumes one bbl of feed per bbl processed
+            *bal[unit.feed_stream].entry(id).or_insert(0.0) -= 1.0;
+            for &(s, yld) in &m.yields {
+                *bal[s].entry(id).or_insert(0.0) += yld;
+            }
+            modes.push((m.name.clone(), id));
+        }
+        conv_vars.push(modes);
+    }
+
+    // --- Blend variables (one per allowed stream per product) ----------------
+    // product index -> Vec<(stream idx, var-id)>
+    let mut blend_vars: Vec<Vec<(usize, usize)>> = Vec::new();
+    for prod in &r.products {
+        let mut bv = Vec::new();
+        for &s in &prod.allowed {
+            let id = add_var(&mut p, &mut vars, prod.price); // revenue price_p * b
+            *bal[s].entry(id).or_insert(0.0) -= 1.0; // consumes the stream
+            bv.push((s, id));
+        }
+        blend_vars.push(bv);
+    }
+
+    // --- Raw-disposition (sales/slop) variables, one per stream --------------
+    let mut sale_vars: Vec<usize> = Vec::with_capacity(r.streams.len());
+    for (s, stream) in r.streams.iter().enumerate() {
+        let id = add_var(&mut p, &mut vars, stream.sale_price);
+        *bal[s].entry(id).or_insert(0.0) -= 1.0;
+        sale_vars.push(id);
+    }
+
+    // === Constraints =========================================================
+    // Stream mass balance: production - disposition == 0.
+    for terms in &bal {
+        p.add_constraint(build_expr(terms, &vars), ComparisonOp::Eq, 0.0);
+    }
+
+    // ADU capacity.
+    let adu_cap = cap_override(&r.adu.name).unwrap_or(r.adu.capacity);
+    p.add_constraint(build_expr(&one(x_adu), &vars), ComparisonOp::Le, adu_cap);
+
+    // Conversion-unit capacity: sum of mode feeds <= cap.
+    for (ui, unit) in r.conversions.iter().enumerate() {
+        let mut terms = BTreeMap::new();
+        for &(_, id) in &conv_vars[ui] {
+            terms.insert(id, 1.0);
+        }
+        let cap = cap_override(&unit.name).unwrap_or(unit.capacity);
+        p.add_constraint(build_expr(&terms, &vars), ComparisonOp::Le, cap);
+    }
+
+    // Product demand ceiling, contract floor, and quality specs.
+    for (pi, prod) in r.products.iter().enumerate() {
+        let mut vol = BTreeMap::new();
+        for &(_, id) in &blend_vars[pi] {
+            vol.insert(id, 1.0);
+        }
+        p.add_constraint(build_expr(&vol, &vars), ComparisonOp::Le, prod.demand);
+        if prod.contract > 0.0 {
+            p.add_constraint(build_expr(&vol, &vars), ComparisonOp::Ge, prod.contract);
+        }
+        for spec in &prod.specs {
+            // sum (idx_q - limit) * b   {>=,<=} 0
+            let mut terms = BTreeMap::new();
+            for &(s, id) in &blend_vars[pi] {
+                let q = r.streams[s].quality[spec.property];
+                terms.insert(id, q - spec.limit);
+            }
+            let op = match spec.kind {
+                SpecKind::Min => ComparisonOp::Ge,
+                SpecKind::Max => ComparisonOp::Le,
+            };
+            p.add_constraint(build_expr(&terms, &vars), op, 0.0);
+        }
+    }
+
+    // === Solve ===============================================================
+    let sol = solve_problem(&p);
+
+    // === Extract =============================================================
+    let crude_charge = sol.var_value(vars[x_adu]);
+    let adu = UnitResult {
+        name: r.adu.name.clone(),
+        throughput: crude_charge,
+        capacity: adu_cap,
+        realised_severity: f64::NAN,
+        per_mode: Vec::new(),
+    };
+
+    let mut conversions = Vec::new();
+    for (ui, unit) in r.conversions.iter().enumerate() {
+        let mut per_mode = Vec::new();
+        let mut feed = 0.0;
+        let mut sev_acc = 0.0;
+        for ((name, id), m) in conv_vars[ui].iter().zip(&unit.modes) {
+            let v = sol.var_value(vars[*id]);
+            feed += v;
+            sev_acc += m.severity * v;
+            per_mode.push((name.clone(), v));
+        }
+        conversions.push(UnitResult {
+            name: unit.name.clone(),
+            throughput: feed,
+            capacity: cap_override(&unit.name).unwrap_or(unit.capacity),
+            realised_severity: if feed > 1e-9 { sev_acc / feed } else { f64::NAN },
+            per_mode,
+        });
+    }
+
+    let mut products = Vec::new();
+    for (pi, prod) in r.products.iter().enumerate() {
+        let mut blend = Vec::new();
+        let mut volume = 0.0;
+        for &(s, id) in &blend_vars[pi] {
+            let v = sol.var_value(vars[id]);
+            volume += v;
+            if v > 1e-6 {
+                blend.push((r.streams[s].name.clone(), v));
+            }
+        }
+        products.push(ProductResult { name: prod.name.clone(), volume, blend });
+    }
+
+    let mut sales = Vec::new();
+    for (s, stream) in r.streams.iter().enumerate() {
+        let v = sol.var_value(vars[sale_vars[s]]);
+        if v > 1e-6 && stream.sale_price > 0.0 {
+            sales.push((stream.name.clone(), v));
+        }
+    }
+
+    SolveResult {
+        margin: sol.objective(),
+        crude_charge,
+        adu,
+        conversions,
+        products,
+        sales,
+    }
+}
+
+fn one(id: usize) -> BTreeMap<usize, f64> {
+    let mut m = BTreeMap::new();
+    m.insert(id, 1.0);
+    m
+}
+
+/// The single point of contact with the LP backend.
+fn solve_problem(p: &Problem) -> microlp::Solution {
+    p.solve().expect("LP should be feasible and bounded")
+}
+
+/// Solve at the configured capacities.
+pub fn solve(r: &Refinery) -> SolveResult {
+    solve_with(r, &|_| None)
+}
+
+/// Marginal value of capacity per unit (£/day per bbl/day), recovered by perturb-and-
+/// resolve over a finite step `delta`. This is the capacity shadow price the TEA layer
+/// needs to value a debottleneck (formulation §8) — solver-agnostic, since microlp does
+/// not expose duals directly.
+pub fn capacity_shadow_prices(r: &Refinery, delta: f64) -> Vec<(String, f64)> {
+    let base = solve(r).margin;
+    let mut out = Vec::new();
+    let mut units: Vec<(String, f64)> = vec![(r.adu.name.clone(), r.adu.capacity)];
+    for u in &r.conversions {
+        units.push((u.name.clone(), u.capacity));
+    }
+    for (name, cap) in units {
+        let bumped = solve_with(r, &|n: &str| if n == name { Some(cap + delta) } else { None });
+        out.push((name, (bumped.margin - base) / delta));
+    }
+    out
+}
