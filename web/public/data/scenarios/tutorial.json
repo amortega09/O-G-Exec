@@ -2,7 +2,7 @@
   "name": "Tutorial — North Sea Refinery",
   "description": "A mid-sized North Sea refinery with an ADU and FCC. Build margins, manage equipment, and reach a £500M valuation.",
   "starting_cash": 50000000,
-  "fixed_opex_per_week": 500000,
+  "fixed_opex_per_week": 2000000,
   "victory_valuation": 500000000,
   "valuation_lookback_weeks": 12,
   "valuation_multiple": 6.0,

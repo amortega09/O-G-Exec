@@ -163,7 +163,8 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
     // --- 5. Update cash ---
     let daily_margin = solve_result.margin;
     let weekly_margin = daily_margin * 7.0;
-    state.cash += weekly_margin - cfg.fixed_opex_per_week;
+    let net_margin = weekly_margin - cfg.fixed_opex_per_week;
+    state.cash += net_margin;
 
     // --- 6. Degrade equipment ---
     // ADU
@@ -267,7 +268,7 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
         .map(|s| s.margin)
         .collect();
     let avg_weekly_margin = if trailing_margins.is_empty() {
-        weekly_margin
+        net_margin
     } else {
         trailing_margins.iter().sum::<f64>() / trailing_margins.len() as f64
     };
@@ -289,7 +290,7 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
 
     state.history.push(WeekSnapshot {
         week: state.week,
-        margin: weekly_margin,
+        margin: net_margin,
         cash: state.cash,
         valuation: state.valuation,
         crude_price: state.market.crude_price,
