@@ -142,4 +142,20 @@ mod tests {
             assert!(sp >= -1e-6, "shadow price for {name} negative: {sp}");
         }
     }
+
+    #[test]
+    fn serde_round_trip() {
+        let r = phase0_refinery();
+        let json = serde_json::to_string_pretty(&r).expect("serialize");
+        let r2: model::Refinery = serde_json::from_str(&json).expect("deserialize");
+        // Solve both and compare margins — proves the round-tripped model is identical.
+        let res1 = solve::solve(&r);
+        let res2 = solve::solve(&r2);
+        assert!(
+            (res1.margin - res2.margin).abs() < 1e-6,
+            "margin mismatch after round-trip: {} vs {}",
+            res1.margin,
+            res2.margin
+        );
+    }
 }

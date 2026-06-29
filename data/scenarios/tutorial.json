@@ -1,0 +1,71 @@
+{
+  "name": "Tutorial — North Sea Refinery",
+  "description": "A mid-sized North Sea refinery with an ADU and FCC. Build margins, manage equipment, and reach a £500M valuation.",
+  "starting_cash": 50000000,
+  "fixed_opex_per_week": 500000,
+  "victory_valuation": 500000000,
+  "valuation_lookback_weeks": 12,
+  "valuation_multiple": 6.0,
+  "market": {
+    "crude_mean": 65.0,
+    "crude_reversion": 0.08,
+    "crude_volatility": 2.5,
+    "gasoline_spread_mean": 30.0,
+    "diesel_spread_mean": 25.0,
+    "spread_volatility": 1.5,
+    "spread_reversion": 0.12,
+    "gasoline_seasonal_amplitude": 5.0,
+    "demand_volatility": 0.10
+  },
+  "equipment": [
+    {
+      "unit_name": "ADU",
+      "degradation_per_kbbl": 0.000022,
+      "high_severity_degradation_mult": 1.0,
+      "trip_threshold": 0.15,
+      "turnaround_weeks": 4,
+      "turnaround_cost": 8000000,
+      "trip_outage_weeks": 6,
+      "trip_outage_cost": 15000000
+    },
+    {
+      "unit_name": "FCC",
+      "degradation_per_kbbl": 0.000040,
+      "high_severity_degradation_mult": 2.0,
+      "trip_threshold": 0.15,
+      "turnaround_weeks": 3,
+      "turnaround_cost": 6000000,
+      "trip_outage_weeks": 5,
+      "trip_outage_cost": 12000000
+    }
+  ],
+  "projects": [
+    {
+      "name": "ADU Debottleneck",
+      "description": "Revamp the atmospheric column internals to increase crude throughput capacity.",
+      "unit_name": "ADU",
+      "capacity_gain": 15000,
+      "cost": 40000000,
+      "duration_weeks": 26,
+      "available_after_week": 12
+    },
+    {
+      "name": "FCC Expansion",
+      "description": "Install a second reactor riser and expand the regenerator to increase FCC feed capacity.",
+      "unit_name": "FCC",
+      "capacity_gain": 10000,
+      "cost": 30000000,
+      "duration_weeks": 20,
+      "available_after_week": 8
+    },
+    {
+      "name": "ADU Heat Integration",
+      "description": "Optimise the crude preheat train to reduce energy costs and squeeze out extra capacity.",
+      "unit_name": "ADU",
+      "capacity_gain": 5000,
+      "cost": 12000000,
+      "duration_weeks": 12,
+      "available_after_week": 4
+    }
+  ]
+}

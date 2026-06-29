@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>O&amp;G Exec — Refinery Business Simulation</title>
+  <meta name="description" content="Run a refinery, optimise margins, manage equipment, and build a £500M business. A browser-based oil refinery strategy game powered by real linear programming." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+      <div class="loading-content">
+        <div class="loading-icon">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="28" stroke="url(#grad)" stroke-width="3" stroke-dasharray="140 40" stroke-linecap="round">
+              <animateTransform attributeName="transform" type="rotate" dur="1.2s" from="0 32 32" to="360 32 32" repeatCount="indefinite"/>
+            </circle>
+            <defs><linearGradient id="grad" x1="0" y1="0" x2="64" y2="64"><stop offset="0%" stop-color="#1a73e8"/><stop offset="100%" stop-color="#00c853"/></linearGradient></defs>
+          </svg>
+        </div>
+        <h1 class="loading-title">O&amp;G Exec</h1>
+        <p class="loading-subtitle">Initialising simulation engine…</p>
+      </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard" class="dashboard hidden">
+      <!-- Header Bar -->
+      <header id="header" class="header">
+        <div class="header-brand">
+          <h1 class="brand-title">O&amp;G Exec</h1>
+          <span class="brand-badge">SIMULATION</span>
+        </div>
+        <div class="header-stats">
+          <div class="stat-chip">
+            <span class="stat-label">Week</span>
+            <span id="stat-week" class="stat-value mono">0</span>
+          </div>
+          <div class="stat-chip cash">
+            <span class="stat-label">Cash</span>
+            <span id="stat-cash" class="stat-value mono">£0</span>
+          </div>
+          <div class="stat-chip valuation">
+            <span class="stat-label">Valuation</span>
+            <span id="stat-valuation" class="stat-value mono">£0</span>
+          </div>
+          <div class="valuation-bar-container">
+            <div id="valuation-bar" class="valuation-bar" style="width: 0%"></div>
+            <span id="valuation-pct" class="valuation-pct">0%</span>
+          </div>
+        </div>
+        <div class="header-controls">
+          <button id="btn-pause" class="btn btn-icon" title="Pause">⏸</button>
+          <button id="btn-play" class="btn btn-icon active" title="Play">▶</button>
+          <button id="btn-fast" class="btn btn-icon" title="Fast (5×)">⏩</button>
+          <button id="btn-step" class="btn btn-secondary" title="Single tick">Step</button>
+        </div>
+      </header>
+
+      <!-- Dashboard Grid -->
+      <main class="grid">
+        <!-- Left Column -->
+        <section id="panel-units" class="panel">
+          <h2 class="panel-title">Refinery Status</h2>
+          <div id="units-content" class="panel-body"></div>
+        </section>
+
+        <section id="panel-pnl" class="panel">
+          <h2 class="panel-title">Weekly P&amp;L</h2>
+          <div id="pnl-content" class="panel-body"></div>
+        </section>
+
+        <!-- Centre Column -->
+        <section id="panel-history" class="panel panel-wide">
+          <h2 class="panel-title">Performance History</h2>
+          <div class="panel-body chart-container">
+            <canvas id="chart-history" width="800" height="280"></canvas>
+          </div>
+        </section>
+
+        <section id="panel-market" class="panel">
+          <h2 class="panel-title">Market Prices</h2>
+          <div id="market-content" class="panel-body"></div>
+        </section>
+
+        <section id="panel-products" class="panel">
+          <h2 class="panel-title">Product Slate</h2>
+          <div id="products-content" class="panel-body"></div>
+        </section>
+
+        <!-- Right Column -->
+        <section id="panel-controls" class="panel">
+          <h2 class="panel-title">Operations</h2>
+          <div id="controls-content" class="panel-body">
+            <div class="control-group">
+              <label class="control-label">FCC Severity Target</label>
+              <div class="slider-row">
+                <input type="range" id="slider-severity" min="0" max="100" value="50" class="slider" />
+                <span id="severity-value" class="slider-value mono">0.50</span>
+              </div>
+            </div>
+            <div class="control-group">
+              <label class="control-label">Product Tilt</label>
+              <div class="slider-row">
+                <span class="slider-label-end">Gasoline</span>
+                <input type="range" id="slider-tilt" min="-100" max="100" value="0" class="slider" />
+                <span class="slider-label-end">Diesel</span>
+              </div>
+            </div>
+            <div class="control-group">
+              <h3 class="control-subtitle">Maintenance</h3>
+              <div id="maintenance-buttons"></div>
+            </div>
+            <div class="control-group">
+              <h3 class="control-subtitle">Capital Projects</h3>
+              <div id="projects-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="panel-events" class="panel">
+          <h2 class="panel-title">Event Log</h2>
+          <div id="events-content" class="panel-body events-scroll"></div>
+        </section>
+      </main>
+
+      <!-- Game Over Overlay -->
+      <div id="game-over" class="overlay hidden">
+        <div class="overlay-content">
+          <h2 id="game-over-title" class="overlay-title"></h2>
+          <p id="game-over-message" class="overlay-message"></p>
+          <button id="btn-restart" class="btn btn-primary">Play Again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/app.js"></script>
+</body>
+</html>

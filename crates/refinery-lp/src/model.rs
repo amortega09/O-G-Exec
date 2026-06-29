@@ -2,10 +2,12 @@
 //! types) so it can become serde/JSON in Phase 1 with zero structural change — this
 //! is the "balancing is JSON edits, not code" surface from the design doc.
 
+use serde::{Deserialize, Serialize};
+
 /// A stream is any cut or unit product. It carries a raw-disposition price (fuel/LPG
 /// sales, or 0 for slop/coke) and a quality vector — one blend-index value per
 /// property in [`Refinery::properties`], same order.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Stream {
     pub name: String,
     /// £/bbl if sold/disposed as-is. 0.0 = free disposal sink (keeps byproducts from
@@ -16,7 +18,7 @@ pub struct Stream {
 }
 
 /// Atmospheric distillation: the single charge unit. Linear assay split.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Adu {
     pub name: String,
     pub capacity: f64,    // bbl/day
@@ -29,7 +31,7 @@ pub struct Adu {
 /// One fixed linear operating recipe of a conversion unit. Severity is the *identity*
 /// of the mode, not a coefficient multiplier — that is what keeps the model an LP
 /// (formulation §3).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Mode {
     pub name: String,
     pub severity: f64, // realised severity of this recipe, for the feed-weighted average
@@ -40,7 +42,7 @@ pub struct Mode {
 
 /// A conversion unit (FCC, hydrocracker, …): consumes one feed stream, runs in one or
 /// more parallel modes the LP blends feed across.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConvUnit {
     pub name: String,
     pub feed_stream: usize,
@@ -48,14 +50,14 @@ pub struct ConvUnit {
     pub modes: Vec<Mode>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum SpecKind {
     Min,
     Max,
 }
 
 /// A linear product quality spec on one property's blend index.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Spec {
     pub property: usize,
     pub kind: SpecKind,
@@ -63,7 +65,7 @@ pub struct Spec {
 }
 
 /// A finished product blend pool.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Product {
     pub name: String,
     pub price: f64,    // £/bbl
@@ -75,7 +77,7 @@ pub struct Product {
 }
 
 /// The whole single-period refinery configuration.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Refinery {
     pub properties: Vec<String>,
     pub streams: Vec<Stream>,
