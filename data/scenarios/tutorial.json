@@ -5,7 +5,7 @@
   "fixed_opex_per_week": 1200000,
   "victory_valuation": 500000000,
   "valuation_lookback_weeks": 12,
-  "valuation_multiple": 3.0,
+  "valuation_multiple": 2.2,
   "market": {
     "crude_mean": 65.0,
     "crude_reversion": 0.12,
@@ -31,7 +31,10 @@
       "turnaround_weeks": 4,
       "turnaround_cost": 5000000,
       "trip_outage_weeks": 6,
-      "trip_outage_cost": 15000000
+      "trip_outage_cost": 15000000,
+      "base_outage_hazard": 0.001,
+      "max_outage_hazard": 0.45,
+      "hazard_exponent": 3.0
     },
     {
       "unit_name": "FCC",
@@ -41,7 +44,10 @@
       "turnaround_weeks": 3,
       "turnaround_cost": 4000000,
       "trip_outage_weeks": 5,
-      "trip_outage_cost": 12000000
+      "trip_outage_cost": 12000000,
+      "base_outage_hazard": 0.0015,
+      "max_outage_hazard": 0.5,
+      "hazard_exponent": 3.0
     }
   ],
   "projects": [

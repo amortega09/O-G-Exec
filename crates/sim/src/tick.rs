@@ -3,8 +3,9 @@
 
 use crate::config::GameConfig;
 use crate::equipment::UnitState;
-use crate::market::{MarketState, Rng};
+use crate::market::MarketState;
 use crate::projects::ProjectState;
+use crate::rng::RngStreams;
 use crate::state::*;
 use refinery_lp::model::Refinery;
 
@@ -43,7 +44,7 @@ pub fn new_game(refinery: Refinery, cfg: &GameConfig, seed: u64) -> GameState {
         projects: Vec::new(),
         history: Vec::new(),
         events: Vec::new(),
-        rng: Rng::new(seed),
+        rng: RngStreams::from_seed(seed),
         refinery: refinery.clone(),
         base_refinery: refinery,
         last_solve: None,
@@ -197,7 +198,7 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
         &cfg.market,
         base_gasoline_demand,
         base_diesel_demand,
-        &mut state.rng,
+        &mut state.rng.market,
     );
 
     // --- 3. Patch refinery config with current market prices + effective capacities ---
@@ -238,53 +239,54 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
     let interest = crate::finance::weekly_interest(state.debt, &cfg.finance);
     state.cash -= interest;
 
-    // --- 6. Degrade equipment ---
-    // ADU
-    if let Some(ecfg) = cfg.equipment_for(&state.units[0].unit_name) {
-        let old_health = state.units[0].health;
-        state.units[0].degrade(solve_result.crude_charge, 1.0, ecfg);
-        // Check for ADU trip.
-        if !state.units[0].is_running() && old_health > ecfg.trip_threshold {
+    // --- 6. Degrade equipment, then roll the stochastic outage hazard ---
+    // Unit 0 is the ADU (severity factor 1.0); the rest are conversion units whose
+    // severity factor rises with how hard the player runs them.
+    for ui in 0..state.units.len() {
+        let unit_name = state.units[ui].unit_name.clone();
+        let ecfg = match cfg.equipment_for(&unit_name) {
+            Some(e) => e,
+            None => continue,
+        };
+
+        let (throughput, sev_factor) = if ui == 0 {
+            (solve_result.crude_charge, 1.0)
+        } else if let Some(cr) = solve_result.conversions.get(ui - 1) {
+            let sf = if cr.realised_severity.is_nan() {
+                1.0
+            } else {
+                let base_sev = 0.6; // low_sev baseline
+                1.0 + (cr.realised_severity - base_sev).max(0.0)
+                    * ecfg.high_severity_degradation_mult
+            };
+            (cr.throughput, sf)
+        } else {
+            (0.0, 1.0)
+        };
+
+        // Degrade, then compute + store this week's outage probability.
+        let hazard = {
+            let unit = &mut state.units[ui];
+            unit.degrade(throughput, sev_factor, ecfg);
+            let h = unit.outage_hazard(sev_factor, ecfg);
+            unit.last_hazard = h;
+            h
+        };
+
+        // Roll the gamble on its own RNG stream.
+        if state.units[ui].is_running() && state.rng.reliability.chance(hazard) {
+            state.units[ui].trip(ecfg);
             state.cash -= ecfg.trip_outage_cost;
             week_events.push(GameEvent {
                 week: state.week,
                 message: format!(
-                    "⚠️ ADU TRIPPED! Unplanned outage ({} weeks, £{:.0}M)",
+                    "⚠️ {} TRIPPED! Unplanned outage ({} weeks, £{:.0}M)",
+                    unit_name,
                     ecfg.trip_outage_weeks,
                     ecfg.trip_outage_cost / 1_000_000.0
                 ),
                 severity: EventSeverity::Critical,
             });
-        }
-    }
-    // Conversion units
-    for (i, conv_result) in solve_result.conversions.iter().enumerate() {
-        let unit = &mut state.units[i + 1];
-        if let Some(ecfg) = cfg.equipment_for(&unit.unit_name) {
-            // Higher severity → faster degradation.
-            let sev_factor = if conv_result.realised_severity.is_nan() {
-                1.0
-            } else {
-                let base_sev = 0.6; // low_sev baseline
-                1.0 + (conv_result.realised_severity - base_sev).max(0.0)
-                    * ecfg.high_severity_degradation_mult
-            };
-            let old_health = unit.health;
-            unit.degrade(conv_result.throughput, sev_factor, ecfg);
-            // Check for trip event.
-            if !unit.is_running() && old_health > ecfg.trip_threshold {
-                state.cash -= ecfg.trip_outage_cost;
-                week_events.push(GameEvent {
-                    week: state.week,
-                    message: format!(
-                        "⚠️ {} TRIPPED! Unplanned outage ({} weeks, £{:.0}M)",
-                        unit.unit_name,
-                        ecfg.trip_outage_weeks,
-                        ecfg.trip_outage_cost / 1_000_000.0
-                    ),
-                    severity: EventSeverity::Critical,
-                });
-            }
         }
     }
 

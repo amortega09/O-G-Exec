@@ -9,6 +9,7 @@ pub mod config;
 pub mod equipment;
 pub mod finance;
 pub mod market;
+pub mod rng;
 pub mod projects;
 pub mod state;
 pub mod tick;
@@ -116,6 +117,33 @@ mod tests {
         // equity = EV + cash − debt, and with positive cash equity exceeds EV.
         assert!((v.equity - (v.enterprise_value + s.cash - s.debt)).abs() < 1.0);
         assert!(v.enterprise_value <= v.equity + 1.0);
+    }
+
+    #[test]
+    fn outage_timing_is_stochastic_across_seeds() {
+        // The reliability gamble must actually be random: different seeds should produce
+        // different first-trip timing (whereas a given seed stays deterministic — see
+        // `deterministic_replay`).
+        use equipment::MaintenanceStatus::Tripped;
+        let cfg = test_config();
+        let mut first_trip = Vec::new();
+        for seed in 0..40u64 {
+            let mut s = new_game(test_refinery(), &cfg, seed);
+            let mut wk_tripped = None;
+            for wk in 1..=250u32 {
+                tick(&mut s, &[PlayerAction::SetSeverity(0.6)], &cfg);
+                if s.units.iter().any(|u| matches!(u.maintenance, Tripped { .. })) {
+                    wk_tripped = Some(wk);
+                    break;
+                }
+            }
+            first_trip.push(wk_tripped);
+        }
+        let distinct: std::collections::HashSet<_> = first_trip.iter().collect();
+        assert!(
+            distinct.len() > 3,
+            "trip timing should vary across seeds, got {distinct:?}"
+        );
     }
 
     #[test]

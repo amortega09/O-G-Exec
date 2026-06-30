@@ -3,7 +3,8 @@
 
 use crate::config::GameConfig;
 use crate::equipment::UnitState;
-use crate::market::{MarketState, Rng};
+use crate::market::MarketState;
+use crate::rng::RngStreams;
 use crate::projects::ProjectState;
 use refinery_lp::model::Refinery;
 use refinery_lp::solve::SolveResult;
@@ -103,7 +104,7 @@ pub struct GameState {
     pub projects: Vec<ProjectState>,
     pub history: Vec<WeekSnapshot>,
     pub events: Vec<GameEvent>,
-    pub rng: Rng,
+    pub rng: RngStreams,
 
     // --- Internal: the refinery configs ---
     /// The current refinery config (prices/demands updated each tick).
@@ -169,6 +170,8 @@ pub struct UnitView {
     pub maintenance_status: String,
     pub maintenance_weeks_remaining: Option<u32>,
     pub realised_severity: Option<f64>,
+    /// Weekly unplanned-outage probability (0–1) — the visible reliability gamble.
+    pub outage_risk: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -274,6 +277,7 @@ impl GameState {
                     maintenance_status: maint_str,
                     maintenance_weeks_remaining: maint_weeks,
                     realised_severity: sev,
+                    outage_risk: u.last_hazard,
                 }
             })
             .collect();

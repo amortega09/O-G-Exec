@@ -21,17 +21,20 @@ wins faster. Honest economics, deterministic per seed. Tests: refinery-lp 5, sim
 
 ## Next — building the world (per vision §Build priority)
 
-### Phase C — event-driven stochastic spine  ← START HERE
+### Phase C — event-driven stochastic spine  ← IN PROGRESS
 The architectural pivot from deterministic calculator to FM-style simulation.
-- A typed **event queue** alongside the linear tick pipeline: physics emits events;
-  entities react and emit more; some surface as player choices.
-- **Split seeded RNG** — one master seed, independent streams per subsystem (market,
-  reliability, people, competitors) so adding a system doesn't shift another's rolls.
-- **Stochastic outage hazard** replacing the deterministic trip threshold
-  ([equipment.rs](../crates/sim/src/equipment.rs)) — reliability becomes a managed gamble.
-- **Execution noise**: realized output = LP plan × stochastic factors (the match-engine
-  gap between plan and reality).
-- Enabler: expose the LP's **real solved flows** through `GameView` (the schematic
+- [x] **Split seeded RNG** ([rng.rs](../crates/sim/src/rng.rs)) — one master seed,
+  independent streams per subsystem (market, reliability, execution, events).
+- [x] **Stochastic outage hazard** ([equipment.rs](../crates/sim/src/equipment.rs)) —
+  trip probability rises non-linearly as health falls and with how hard you run; the
+  deterministic threshold is gone. `outage_risk` surfaced per unit in the UI.
+- [ ] **Execution noise**: realized output = LP plan × stochastic factors (the
+  match-engine gap between plan and reality). Must scale the `Finances` breakdown too so
+  the P&L still reconciles to cash.
+- [ ] **Typed event queue** alongside the tick pipeline: physics emits events; entities
+  react and emit more; some surface as player choices. *Defer until there are entities
+  (people/competitors) that need to react — don't build the bus before there's traffic.*
+- [ ] Enabler: expose the LP's **real solved flows** through `GameView` (the schematic
   currently re-derives them in JS — see [app.js](../web/src/app.js) `renderSchematic`).
 
 ### Phase D — multi-crude procurement

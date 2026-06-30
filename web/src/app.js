@@ -644,6 +644,11 @@ function renderUnits(view) {
       ? `<div style="font-size:0.75rem;"><span class="text-muted">Target Severity:</span> <span class="mono text-bright">${u.realised_severity.toFixed(3)}</span></div>`
       : '';
 
+    // Stochastic outage hazard for this week — the visible reliability gamble.
+    const riskPct = (u.outage_risk || 0) * 100;
+    const riskColor = riskPct > 15 ? '#ff5252' : riskPct > 5 ? '#ffb300' : '#00e676';
+    const riskInfo = `<div style="font-size:0.75rem;"><span class="text-muted">Outage risk/wk:</span> <span class="mono" style="color:${riskColor}">${riskPct.toFixed(1)}%</span></div>`;
+
     return `
       <div class="unit-dial-card">
         <div class="unit-dial-title-row">
@@ -678,6 +683,7 @@ function renderUnits(view) {
         <div class="unit-dial-meta-row">
           <div class="mono">Flow: ${formatNum(u.throughput)}/${formatNum(u.capacity)} bbl/d</div>
           ${severityInfo}
+          ${riskInfo}
         </div>
       </div>
     `;

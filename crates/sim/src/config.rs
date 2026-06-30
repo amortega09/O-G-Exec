@@ -82,8 +82,16 @@ pub struct EquipmentConfig {
     pub degradation_per_kbbl: f64,
     /// Multiplier on degradation rate when running high-severity modes.
     pub high_severity_degradation_mult: f64,
-    /// Health threshold below which the unit trips automatically.
+    /// Health at or below which the unit is certain to trip (a hard floor under the
+    /// stochastic hazard).
     pub trip_threshold: f64,
+    /// Weekly outage probability at full health — random failures still happen.
+    pub base_outage_hazard: f64,
+    /// Weekly outage probability as health → 0 (before the severity multiplier).
+    pub max_outage_hazard: f64,
+    /// Curvature of the hazard vs (1 − health): >1 makes risk stay low until health is
+    /// genuinely degraded, then climb steeply.
+    pub hazard_exponent: f64,
     /// Duration of a planned turnaround (weeks).
     pub turnaround_weeks: u32,
     /// Cost of a planned turnaround (£).
