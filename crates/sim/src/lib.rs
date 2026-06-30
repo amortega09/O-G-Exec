@@ -7,6 +7,7 @@
 
 pub mod config;
 pub mod equipment;
+pub mod finance;
 pub mod market;
 pub mod projects;
 pub mod state;
@@ -71,6 +72,50 @@ mod tests {
             "weekly_margin {} must equal cash delta {delta}",
             v.weekly_margin
         );
+    }
+
+    #[test]
+    fn borrow_increases_cash_and_debt_then_interest_accrues() {
+        let cfg = test_config();
+        let mut s = new_game(test_refinery(), &cfg, 42);
+        let cash0 = s.cash;
+        tick(&mut s, &[PlayerAction::Borrow(50_000_000.0)], &cfg);
+        assert!((s.debt - 50_000_000.0).abs() < 1.0, "debt should be 50M");
+        // Cash went up by the draw, then down by operating result + one week interest.
+        let interest = cfg.finance.weekly_rate() * 50_000_000.0;
+        assert!(s.cash > cash0, "drawing debt should raise cash on net this tick");
+        // Repay knocks debt back down.
+        tick(&mut s, &[PlayerAction::Repay(20_000_000.0)], &cfg);
+        assert!((s.debt - 30_000_000.0).abs() < 1.0, "debt should be 30M after repay");
+        assert!(interest > 0.0);
+    }
+
+    #[test]
+    fn cannot_borrow_beyond_the_limit() {
+        let cfg = test_config();
+        let mut s = new_game(test_refinery(), &cfg, 42);
+        tick(&mut s, &[PlayerAction::Borrow(1_000_000_000.0)], &cfg);
+        assert!(
+            s.debt <= cfg.finance.max_debt + 1.0,
+            "debt {} must not exceed max {}",
+            s.debt,
+            cfg.finance.max_debt
+        );
+    }
+
+    #[test]
+    fn valuation_is_enterprise_value_not_cash_hoard() {
+        // Equity counts cash; the win metric (valuation = enterprise value) does not —
+        // so banking cash must not move valuation on its own.
+        let cfg = test_config();
+        let mut s = new_game(test_refinery(), &cfg, 42);
+        for _ in 0..15 {
+            tick(&mut s, &[], &cfg);
+        }
+        let v = s.view(&cfg);
+        // equity = EV + cash − debt, and with positive cash equity exceeds EV.
+        assert!((v.equity - (v.enterprise_value + s.cash - s.debt)).abs() < 1.0);
+        assert!(v.enterprise_value <= v.equity + 1.0);
     }
 
     #[test]

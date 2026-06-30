@@ -22,10 +22,31 @@ pub struct GameConfig {
     pub valuation_multiple: f64,
     /// Market model parameters.
     pub market: MarketConfig,
+    /// Debt financing parameters.
+    pub finance: FinanceConfig,
     /// Per-unit equipment parameters (aligned to refinery units by name).
     pub equipment: Vec<EquipmentConfig>,
     /// Capital projects available to the player.
     pub projects: Vec<ProjectConfig>,
+}
+
+/// Debt financing parameters.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FinanceConfig {
+    /// Annual interest rate on outstanding debt (e.g. 0.09 = 9%). Charged weekly at
+    /// 1/52 of this on the outstanding balance.
+    pub annual_interest_rate: f64,
+    /// Maximum total debt the player may carry (£) — a simple borrowing base.
+    pub max_debt: f64,
+    /// Cash below this level (£, typically negative) is insolvency: game over.
+    pub bankruptcy_cash_floor: f64,
+}
+
+impl FinanceConfig {
+    /// Weekly interest rate applied to the outstanding balance.
+    pub fn weekly_rate(&self) -> f64 {
+        self.annual_interest_rate / 52.0
+    }
 }
 
 /// Market price model configuration. Prices follow an Ornstein-Uhlenbeck

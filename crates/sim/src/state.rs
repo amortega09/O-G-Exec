@@ -41,7 +41,10 @@ impl Default for PlayerSettings {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WeekSnapshot {
     pub week: u32,
+    /// Operating margin (EBITDA proxy): banked to cash before interest.
     pub margin: f64,
+    pub interest: f64,
+    pub debt: f64,
     pub cash: f64,
     pub valuation: f64,
     pub crude_price: f64,
@@ -78,6 +81,10 @@ pub enum PlayerAction {
     ScheduleTurnaround(String),
     /// Approve a capital project (by config index).
     ApproveProject(usize),
+    /// Draw new debt (£), clamped to the borrowing base.
+    Borrow(f64),
+    /// Repay debt principal (£), clamped to what is owed and what cash allows.
+    Repay(f64),
 }
 
 /// The full game state.
@@ -85,6 +92,9 @@ pub enum PlayerAction {
 pub struct GameState {
     pub week: u32,
     pub cash: f64,
+    /// Outstanding debt principal (£).
+    pub debt: f64,
+    /// Enterprise value (£) — the win metric. Operating value = EBITDA × multiple.
     pub valuation: f64,
     pub status: GameStatus,
     pub player: PlayerSettings,
@@ -131,6 +141,14 @@ pub struct GameView {
     pub crude_cost: f64,
     pub variable_opex: f64,
     pub fixed_opex: f64,
+    // --- Balance sheet ---
+    pub debt: f64,
+    pub interest: f64,
+    pub borrowing_capacity: f64,
+    /// Operating value of the business (EBITDA × multiple) — the win metric, == valuation.
+    pub enterprise_value: f64,
+    /// Net worth = enterprise value + cash − debt. Shown for awareness, not the win.
+    pub equity: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -334,6 +352,11 @@ impl GameState {
             crude_cost,
             variable_opex: var_opex,
             fixed_opex,
+            debt: self.debt,
+            interest: crate::finance::weekly_interest(self.debt, &cfg.finance),
+            borrowing_capacity: crate::finance::borrowing_capacity(self.debt, &cfg.finance),
+            enterprise_value: self.valuation, // valuation IS enterprise value (the win metric)
+            equity: crate::finance::equity_value(self.valuation, self.cash, self.debt),
         }
     }
 }

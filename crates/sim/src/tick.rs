@@ -34,6 +34,7 @@ pub fn new_game(refinery: Refinery, cfg: &GameConfig, seed: u64) -> GameState {
     GameState {
         week: 0,
         cash: cfg.starting_cash,
+        debt: 0.0,
         valuation: 0.0,
         status: GameStatus::Running,
         player: PlayerSettings::default(),
@@ -146,6 +147,32 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
                     }
                 }
             }
+            PlayerAction::Borrow(amount) => {
+                let drawn = crate::finance::draw(state.debt, *amount, &cfg.finance);
+                if drawn > 0.0 {
+                    state.debt += drawn;
+                    state.cash += drawn;
+                    week_events.push(GameEvent {
+                        week: state.week,
+                        message: format!("Drew £{:.0}M debt (balance £{:.0}M)",
+                            drawn / 1_000_000.0, state.debt / 1_000_000.0),
+                        severity: EventSeverity::Info,
+                    });
+                }
+            }
+            PlayerAction::Repay(amount) => {
+                let paid = crate::finance::repay(state.debt, state.cash, *amount);
+                if paid > 0.0 {
+                    state.debt -= paid;
+                    state.cash -= paid;
+                    week_events.push(GameEvent {
+                        week: state.week,
+                        message: format!("Repaid £{:.0}M debt (balance £{:.0}M)",
+                            paid / 1_000_000.0, state.debt / 1_000_000.0),
+                        severity: EventSeverity::Info,
+                    });
+                }
+            }
         }
     }
 
@@ -202,10 +229,14 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
     let solve_result = refinery_lp::solve::solve_opts(&state.refinery, &opts);
 
     // --- 5. Update cash ---
+    // Operating margin (EBITDA): banked before interest. Used for valuation.
     let daily_margin = solve_result.margin;
     let weekly_margin = daily_margin * 7.0;
     let net_margin = weekly_margin - cfg.fixed_opex_per_week;
     state.cash += net_margin;
+    // Interest on debt sits below EBITDA — a financing cost, not an operating one.
+    let interest = crate::finance::weekly_interest(state.debt, &cfg.finance);
+    state.cash -= interest;
 
     // --- 6. Degrade equipment ---
     // ADU
@@ -313,7 +344,10 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
     } else {
         trailing_margins.iter().sum::<f64>() / trailing_margins.len() as f64
     };
-    state.valuation = avg_weekly_margin * 52.0 * cfg.valuation_multiple;
+    // Enterprise value of operations (floored at 0 — a loss-making plant isn't worth a
+    // negative sale price). This is the win metric: you grow it by growing EBITDA, not
+    // by hoarding cash. Cash/debt govern survival and fund growth, but don't count here.
+    state.valuation = (avg_weekly_margin * 52.0 * cfg.valuation_multiple).max(0.0);
 
     // --- 10. Record snapshot ---
     let gasoline_vol = solve_result
@@ -332,6 +366,8 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
     state.history.push(WeekSnapshot {
         week: state.week,
         margin: net_margin,
+        interest,
+        debt: state.debt,
         cash: state.cash,
         valuation: state.valuation,
         crude_price: state.market.crude_price,
@@ -357,14 +393,18 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
             ),
             severity: EventSeverity::Info,
         });
-    } else if state.cash < -50_000_000.0 {
+    } else if state.cash < cfg.finance.bankruptcy_cash_floor {
         state.status = GameStatus::Lost {
             week: state.week,
-            reason: "Bankruptcy — cash below -£50M".into(),
+            reason: format!(
+                "Insolvent — cash £{:.0}M below the £{:.0}M floor",
+                state.cash / 1_000_000.0,
+                cfg.finance.bankruptcy_cash_floor / 1_000_000.0
+            ),
         };
         week_events.push(GameEvent {
             week: state.week,
-            message: "💀 Bankrupt! Cash dropped below -£50M.".into(),
+            message: "💀 Insolvent! Out of cash and borrowing capacity.".into(),
             severity: EventSeverity::Critical,
         });
     }

@@ -142,6 +142,14 @@ function setupControls() {
   document.getElementById('btn-restart').addEventListener('click', () => {
     location.reload();
   });
+
+  // Financing
+  document.getElementById('btn-borrow').addEventListener('click', () => {
+    pendingActions.push({ Borrow: 20_000_000 });
+  });
+  document.getElementById('btn-repay').addEventListener('click', () => {
+    pendingActions.push({ Repay: 20_000_000 });
+  });
 }
 
 // ── Rendering ───────────────────────────────────────────────────────────────
@@ -153,8 +161,24 @@ function renderAll(view) {
   renderProducts(view);
   renderMaintenance(view);
   renderProjects(view);
+  renderFinance(view);
   renderEvents(view);
   renderChart(view);
+}
+
+// ── Financing ───────────────────────────────────────────────────────────────
+function renderFinance(view) {
+  const el = document.getElementById('finance-content');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="pnl-row"><span class="pnl-label">Debt</span>
+      <span class="pnl-value ${view.debt > 0 ? 'pnl-negative' : ''}">${formatMoney(view.debt)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Interest / wk</span>
+      <span class="pnl-value pnl-negative">-${formatMoney(view.interest)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Borrowing room</span>
+      <span class="pnl-value">${formatMoney(view.borrowing_capacity)}</span></div>
+    <div class="pnl-row"><span class="pnl-label">Equity</span>
+      <span class="pnl-value ${view.equity >= 0 ? 'pnl-positive' : 'pnl-negative'}">${formatMoney(view.equity)}</span></div>`;
 }
 
 function formatMoney(n) {
@@ -260,8 +284,16 @@ function renderPnl(view) {
       <span class="pnl-value pnl-negative">-${formatMoney(view.fixed_opex)}</span>
     </div>
     <div class="pnl-row total">
-      <span class="pnl-label">Net Weekly Margin</span>
+      <span class="pnl-label">EBITDA</span>
       <span class="pnl-value ${marginClass}">${formatMoney(margin)}</span>
+    </div>
+    <div class="pnl-row">
+      <span class="pnl-label">Interest</span>
+      <span class="pnl-value pnl-negative">-${formatMoney(view.interest)}</span>
+    </div>
+    <div class="pnl-row total">
+      <span class="pnl-label">Δ Cash</span>
+      <span class="pnl-value ${(margin - view.interest) >= 0 ? 'pnl-positive' : 'pnl-negative'}">${formatMoney(margin - view.interest)}</span>
     </div>
     <div class="pnl-row">
       <span class="pnl-label">Crude Charge</span>
