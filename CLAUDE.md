@@ -1,9 +1,18 @@
 # O-G-Exec
 
-Oil refinery business simulation game. Rust core (sim strictly independent of UI),
-real single-period LP, WASM web surface, victory at £500M valuation.
+Oil refinery **business** simulator. You play an owner/exec growing a company in a living
+oil market; a real LP gives every refinery authentic economics so the world behaves like
+the real industry instead of faking it. Rust core (sim strictly independent of UI), WASM
+web surface, victory at £500M valuation.
 
-Full design and LP formulation: [docs/lp-formulation.md](docs/lp-formulation.md).
+**Read before designing:** [docs/vision.md](docs/vision.md) (the north star — aim, the
+five layers, where the player sits, the LP as the world's economic engine) and
+[docs/roadmap.md](docs/roadmap.md) (you-are-here + what's next).
+LP technical spec: [docs/lp-formulation.md](docs/lp-formulation.md).
+
+Key framing: **the LP is the world's economic truth engine, not the game.** The player
+lives in the commercial/corporate layers (3–5); operations are an optional depth dial.
+Build the world that uses the LP — don't keep deepening the LP.
 
 ## Status
 - **Phase 0** done: single-period refinery LP, solves in ~165µs, WASM-confirmed.
@@ -16,8 +25,8 @@ Full design and LP formulation: [docs/lp-formulation.md](docs/lp-formulation.md)
 - **Phase B** done: debt financing — borrow/repay, weekly interest, insolvency floor;
   valuation is **enterprise value** (EBITDA × multiple, the win metric), equity = EV +
   cash − debt shown separately. Leverage funds capex and accelerates the win.
-- **Next**: Phase C — probability spine (split RNG streams, stochastic outage hazard,
-  execution noise on the LP plan). See [docs/lp-formulation.md](docs/lp-formulation.md).
+- **Next**: Phase C — event-driven stochastic spine (event queue, split RNG, stochastic
+  outage hazard, execution noise). Full sequence in [docs/roadmap.md](docs/roadmap.md).
 
 ## Project Structure
 
