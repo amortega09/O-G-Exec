@@ -3,3 +3,4 @@
 /web/dist
 /web/pkg
 .DS_Store
+/web/public/data

@@ -25,14 +25,53 @@ pub struct ProductResult {
     pub blend: Vec<(String, f64)>, // (stream name, bbl/day into this pool)
 }
 
+/// Truthful £/day financial breakdown of a solve, computed from the actual flows and
+/// real prices (no tilt bonus). `margin == revenue() - crude_cost - opex` by
+/// construction — the sim and UI consume this instead of reverse-engineering numbers.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Finances {
+    pub product_revenue: f64,   // finished-product sales
+    pub byproduct_revenue: f64, // raw stream dispositions (LPG, fuel oil, naphtha)
+    pub crude_cost: f64,        // crude charged × replacement price
+    pub opex: f64,              // variable unit opex (ADU + conversions)
+}
+
+impl Finances {
+    pub fn revenue(&self) -> f64 {
+        self.product_revenue + self.byproduct_revenue
+    }
+    /// Contribution margin = total revenue − crude − variable opex.
+    pub fn margin(&self) -> f64 {
+        self.revenue() - self.crude_cost - self.opex
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SolveResult {
-    pub margin: f64, // £/day contribution margin
+    pub margin: f64, // £/day TRUE contribution margin (== finances.margin())
+    pub finances: Finances,
     pub crude_charge: f64,
     pub adu: UnitResult,
     pub conversions: Vec<UnitResult>,
     pub products: Vec<ProductResult>,
     pub sales: Vec<(String, f64)>, // raw stream dispositions with value
+}
+
+/// Player operating policy (the Level-2 sliders), fed into the LP each tick.
+/// Formulation §7: sliders enter as bounds / objective weights, never new
+/// nonlinearities.
+#[derive(Debug, Clone, Default)]
+pub struct SolveOptions {
+    /// Minimum feed-weighted average severity each conversion unit must run at.
+    /// `None` = let the LP choose freely. The severity dial maps to this floor; the
+    /// LP cannot duck to the cheap low-severity mode below it, and the extra opex of
+    /// the high-severity recipe is paid in real margin (and degradation, in the sim).
+    pub min_severity: Option<f64>,
+    /// Additive £/bbl objective bonus per product, aligned to `Refinery::products`.
+    /// The product-tilt slider sets this to steer the slate. It is a *preference*, not
+    /// revenue: its contribution is subtracted back out of the reported margin so cash
+    /// reflects true economics.
+    pub product_bonus: Vec<f64>,
 }
 
 /// Accumulates a sparse linear expression as `var-id -> coefficient`, then materialises
@@ -50,7 +89,11 @@ const INF: f64 = f64::INFINITY;
 
 /// Build and solve the LP for `r`. Capacity overrides (unit name -> capacity) let the
 /// shadow-price routine re-solve with a perturbed bottleneck without mutating the model.
-fn solve_with(r: &Refinery, cap_override: &dyn Fn(&str) -> Option<f64>) -> SolveResult {
+fn solve_with(
+    r: &Refinery,
+    cap_override: &dyn Fn(&str) -> Option<f64>,
+    opts: &SolveOptions,
+) -> SolveResult {
     let mut p = Problem::new(OptimizationDirection::Maximize);
     let mut vars: Vec<Variable> = Vec::new();
     // Stream balance accumulators: stream idx -> (var-id -> signed coeff).
@@ -90,10 +133,12 @@ fn solve_with(r: &Refinery, cap_override: &dyn Fn(&str) -> Option<f64>) -> Solve
     // --- Blend variables (one per allowed stream per product) ----------------
     // product index -> Vec<(stream idx, var-id)>
     let mut blend_vars: Vec<Vec<(usize, usize)>> = Vec::new();
-    for prod in &r.products {
+    for (pi, prod) in r.products.iter().enumerate() {
+        let bonus = opts.product_bonus.get(pi).copied().unwrap_or(0.0);
         let mut bv = Vec::new();
         for &s in &prod.allowed {
-            let id = add_var(&mut p, &mut vars, prod.price); // revenue price_p * b
+            // objective = (real price + tilt preference bonus) * b
+            let id = add_var(&mut p, &mut vars, prod.price + bonus);
             *bal[s].entry(id).or_insert(0.0) -= 1.0; // consumes the stream
             bv.push((s, id));
         }
@@ -128,6 +173,18 @@ fn solve_with(r: &Refinery, cap_override: &dyn Fn(&str) -> Option<f64>) -> Solve
         p.add_constraint(build_expr(&terms, &vars), ComparisonOp::Le, cap);
     }
 
+    // Severity floor (the severity dial): feed-weighted avg severity >= min_severity.
+    //   Σ σ_m g_m  >=  min_sev · Σ g_m   ⟺   Σ (σ_m - min_sev) g_m >= 0   (linear, §7).
+    if let Some(min_sev) = opts.min_severity {
+        for (ui, unit) in r.conversions.iter().enumerate() {
+            let mut terms = BTreeMap::new();
+            for ((_, id), m) in conv_vars[ui].iter().zip(&unit.modes) {
+                terms.insert(*id, m.severity - min_sev);
+            }
+            p.add_constraint(build_expr(&terms, &vars), ComparisonOp::Ge, 0.0);
+        }
+    }
+
     // Product demand ceiling, contract floor, and quality specs.
     for (pi, prod) in r.products.iter().enumerate() {
         let mut vol = BTreeMap::new();
@@ -158,6 +215,7 @@ fn solve_with(r: &Refinery, cap_override: &dyn Fn(&str) -> Option<f64>) -> Solve
 
     // === Extract =============================================================
     let crude_charge = sol.var_value(vars[x_adu]);
+    let mut var_opex = crude_charge * r.adu.opex; // ADU opex; conversion opex added below
     let adu = UnitResult {
         name: r.adu.name.clone(),
         throughput: crude_charge,
@@ -175,6 +233,7 @@ fn solve_with(r: &Refinery, cap_override: &dyn Fn(&str) -> Option<f64>) -> Solve
             let v = sol.var_value(vars[*id]);
             feed += v;
             sev_acc += m.severity * v;
+            var_opex += m.opex * v;
             per_mode.push((name.clone(), v));
         }
         conversions.push(UnitResult {
@@ -187,6 +246,8 @@ fn solve_with(r: &Refinery, cap_override: &dyn Fn(&str) -> Option<f64>) -> Solve
     }
 
     let mut products = Vec::new();
+    let mut product_revenue = 0.0;
+    let mut tilt_contribution = 0.0; // artificial bonus baked into the objective
     for (pi, prod) in r.products.iter().enumerate() {
         let mut blend = Vec::new();
         let mut volume = 0.0;
@@ -197,19 +258,36 @@ fn solve_with(r: &Refinery, cap_override: &dyn Fn(&str) -> Option<f64>) -> Solve
                 blend.push((r.streams[s].name.clone(), v));
             }
         }
+        product_revenue += volume * prod.price; // real price, never the tilt bonus
+        tilt_contribution += opts.product_bonus.get(pi).copied().unwrap_or(0.0) * volume;
         products.push(ProductResult { name: prod.name.clone(), volume, blend });
     }
 
     let mut sales = Vec::new();
+    let mut byproduct_revenue = 0.0;
     for (s, stream) in r.streams.iter().enumerate() {
         let v = sol.var_value(vars[sale_vars[s]]);
+        byproduct_revenue += v * stream.sale_price;
         if v > 1e-6 && stream.sale_price > 0.0 {
             sales.push((stream.name.clone(), v));
         }
     }
 
+    let finances = Finances {
+        product_revenue,
+        byproduct_revenue,
+        crude_cost: crude_charge * r.adu.crude_price,
+        opex: var_opex,
+    };
+    // The breakdown must reconcile with the LP objective (minus the tilt preference).
+    debug_assert!(
+        (finances.margin() - (sol.objective() - tilt_contribution)).abs() < 1e-3,
+        "finances breakdown does not reconcile with LP objective"
+    );
+
     SolveResult {
-        margin: sol.objective(),
+        margin: finances.margin(),
+        finances,
         crude_charge,
         adu,
         conversions,
@@ -229,9 +307,14 @@ fn solve_problem(p: &Problem) -> microlp::Solution {
     p.solve().expect("LP should be feasible and bounded")
 }
 
-/// Solve at the configured capacities.
+/// Solve at the configured capacities with no operating policy (LP chooses freely).
 pub fn solve(r: &Refinery) -> SolveResult {
-    solve_with(r, &|_| None)
+    solve_with(r, &|_| None, &SolveOptions::default())
+}
+
+/// Solve under a player operating policy (severity floor, product tilt).
+pub fn solve_opts(r: &Refinery, opts: &SolveOptions) -> SolveResult {
+    solve_with(r, &|_| None, opts)
 }
 
 /// Marginal value of capacity per unit (£/day per bbl/day), recovered by perturb-and-
@@ -246,7 +329,11 @@ pub fn capacity_shadow_prices(r: &Refinery, delta: f64) -> Vec<(String, f64)> {
         units.push((u.name.clone(), u.capacity));
     }
     for (name, cap) in units {
-        let bumped = solve_with(r, &|n: &str| if n == name { Some(cap + delta) } else { None });
+        let bumped = solve_with(
+            r,
+            &|n: &str| if n == name { Some(cap + delta) } else { None },
+            &SolveOptions::default(),
+        );
         out.push((name, (bumped.margin - base) / delta));
     }
     out

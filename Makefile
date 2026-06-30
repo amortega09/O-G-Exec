@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 CARGO := $(HOME)/.cargo/bin/cargo
 
-.PHONY: all wasm web dev test clean
+.PHONY: all wasm web dev test sync-data clean
 
 ## Build everything: compile WASM then start dev server
 all: wasm web
@@ -23,9 +23,10 @@ web:
 dev:
 	cd web && npm run dev
 
-## Export the phase0 refinery to JSON for the web app
-export-refinery:
-	$(CARGO) run -p refinery-lp --example export_refinery > web/public/data/refinery.json
+## Sync canonical game data (data/) into the web app's served public/data dir.
+## Runs automatically via npm pre-scripts; this target is for manual use.
+sync-data:
+	cd web && node scripts/sync-data.mjs
 
 ## Clean build artifacts
 clean:

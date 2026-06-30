@@ -136,6 +136,37 @@ mod tests {
     }
 
     #[test]
+    fn finances_reconcile_with_margin() {
+        // The P&L breakdown must sum exactly to the reported margin — the whole point
+        // of Phase A is that no number shown to the player is approximated.
+        let r = phase0_refinery();
+        let res = solve::solve(&r);
+        let f = &res.finances;
+        assert!((f.margin() - res.margin).abs() < 1e-6);
+        assert!(
+            (f.revenue() - f.crude_cost - f.opex - res.margin).abs() < 1e-6,
+            "revenue − crude − opex must equal margin"
+        );
+        assert!(f.product_revenue > 0.0 && f.crude_cost > 0.0 && f.opex > 0.0);
+    }
+
+    #[test]
+    fn tilt_steers_slate_but_not_reported_margin() {
+        // A product-tilt preference may change the slate, but reported margin must stay
+        // true economics (real prices), never inflated by the preference bonus.
+        let r = phase0_refinery();
+        let mut opts = solve::SolveOptions::default();
+        opts.product_bonus = r
+            .products
+            .iter()
+            .map(|p| if p.name == "diesel" { 8.0 } else { 0.0 })
+            .collect();
+        let res = solve::solve_opts(&r, &opts);
+        // Margin still reconciles to the real-price breakdown (bonus excluded).
+        assert!((res.finances.margin() - res.margin).abs() < 1e-6);
+    }
+
+    #[test]
     fn capacity_shadow_prices_nonnegative() {
         let r = phase0_refinery();
         for (name, sp) in solve::capacity_shadow_prices(&r, 100.0) {

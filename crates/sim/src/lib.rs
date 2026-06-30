@@ -53,6 +53,70 @@ mod tests {
     }
 
     #[test]
+    fn view_pnl_reconciles_with_cash_movement() {
+        // The P&L the player reads must equal the cash the bank actually moves:
+        // revenue − crude − variable_opex − fixed_opex == Δcash for the week.
+        let cfg = test_config();
+        let mut s = new_game(test_refinery(), &cfg, 42);
+        let cash_before = s.cash;
+        let v = tick(&mut s, &[], &cfg);
+        let delta = s.cash - cash_before;
+        let pnl = v.revenue - v.crude_cost - v.variable_opex - v.fixed_opex;
+        assert!(
+            (pnl - delta).abs() < 1.0,
+            "P&L {pnl} must reconcile with cash delta {delta}"
+        );
+        assert!(
+            (v.weekly_margin - delta).abs() < 1.0,
+            "weekly_margin {} must equal cash delta {delta}",
+            v.weekly_margin
+        );
+    }
+
+    #[test]
+    fn do_nothing_does_not_instantly_win() {
+        // Regression: a healthy plant's valuation spikes early, but the trailing-average
+        // board review must not crown a win within the first lookback window.
+        let cfg = test_config();
+        let mut s = new_game(test_refinery(), &cfg, 42);
+        for _ in 0..cfg.valuation_lookback_weeks {
+            tick(&mut s, &[], &cfg);
+        }
+        assert_eq!(
+            s.status,
+            GameStatus::Running,
+            "should still be running through the first lookback window"
+        );
+    }
+
+    #[test]
+    fn severity_shifts_slate_and_degrades_faster() {
+        // The severity slider must actually reach the LP: higher severity -> more
+        // gasoline now, but faster FCC degradation (the core utilization↔reliability tension).
+        let cfg = test_config();
+        let mut lo = new_game(test_refinery(), &cfg, 7);
+        let mut hi = new_game(test_refinery(), &cfg, 7);
+        tick(&mut lo, &[PlayerAction::SetSeverity(0.0)], &cfg);
+        tick(&mut hi, &[PlayerAction::SetSeverity(1.0)], &cfg);
+        assert!(
+            hi.history[0].gasoline_volume > lo.history[0].gasoline_volume,
+            "high severity should yield more gasoline: {} vs {}",
+            hi.history[0].gasoline_volume,
+            lo.history[0].gasoline_volume
+        );
+        for _ in 0..10 {
+            tick(&mut lo, &[PlayerAction::SetSeverity(0.0)], &cfg);
+            tick(&mut hi, &[PlayerAction::SetSeverity(1.0)], &cfg);
+        }
+        assert!(
+            hi.units[1].health < lo.units[1].health,
+            "high severity should degrade the FCC faster: {} vs {}",
+            hi.units[1].health,
+            lo.units[1].health
+        );
+    }
+
+    #[test]
     fn deterministic_replay() {
         let cfg = test_config();
         let r = test_refinery();
@@ -111,7 +175,7 @@ mod tests {
         );
 
         let ta_weeks = cfg.equipment_for("ADU").unwrap().turnaround_weeks;
-        for i in 0..(ta_weeks + 2) {
+        for _ in 0..(ta_weeks + 2) {
             tick(&mut state, &[], &cfg);
         }
 

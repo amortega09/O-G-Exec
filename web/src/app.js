@@ -252,12 +252,20 @@ function renderPnl(view) {
       <span class="pnl-value pnl-negative">-${formatMoney(view.crude_cost)}</span>
     </div>
     <div class="pnl-row">
-      <span class="pnl-label">Crude Charge</span>
-      <span class="pnl-value">${formatNum(view.crude_charge)} bbl/d</span>
+      <span class="pnl-label">Operating Cost</span>
+      <span class="pnl-value pnl-negative">-${formatMoney(view.variable_opex)}</span>
+    </div>
+    <div class="pnl-row">
+      <span class="pnl-label">Fixed Overhead</span>
+      <span class="pnl-value pnl-negative">-${formatMoney(view.fixed_opex)}</span>
     </div>
     <div class="pnl-row total">
-      <span class="pnl-label">Weekly Margin</span>
+      <span class="pnl-label">Net Weekly Margin</span>
       <span class="pnl-value ${marginClass}">${formatMoney(margin)}</span>
+    </div>
+    <div class="pnl-row">
+      <span class="pnl-label">Crude Charge</span>
+      <span class="pnl-value">${formatNum(view.crude_charge)} bbl/d</span>
     </div>
     <div class="pnl-row" style="margin-top: 8px;">
       <span class="pnl-label">Shadow Prices</span>

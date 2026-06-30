@@ -124,11 +124,13 @@ pub struct GameView {
     pub history: Vec<WeekSnapshot>,
     pub events: Vec<GameEvent>,
     pub shadow_prices: Vec<(String, f64)>,
+    /// Net weekly margin banked to cash = revenue − crude − variable_opex − fixed_opex.
     pub weekly_margin: f64,
     pub crude_charge: f64,
     pub revenue: f64,
     pub crude_cost: f64,
-    pub opex: f64,
+    pub variable_opex: f64,
+    pub fixed_opex: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -183,25 +185,17 @@ impl GameState {
     pub fn view(&self, cfg: &GameConfig) -> GameView {
         let solve = self.last_solve.as_ref();
 
-        let weekly_margin = solve.map(|s| s.margin * 7.0).unwrap_or(0.0);
         let crude_charge = solve.map(|s| s.crude_charge).unwrap_or(0.0);
 
-        // Revenue = product sales + raw stream sales
-        let revenue = solve
-            .map(|s| {
-                let prod_rev: f64 = s
-                    .products
-                    .iter()
-                    .zip(self.refinery.products.iter())
-                    .map(|(pr, p)| pr.volume * p.price)
-                    .sum();
-                let raw_rev: f64 = s.sales.iter().map(|(_, v)| *v).sum::<f64>() * 50.0; // approx
-                (prod_rev + raw_rev) * 7.0
-            })
-            .unwrap_or(0.0);
-
-        let crude_cost = crude_charge * self.refinery.adu.crude_price * 7.0;
-        let opex = weekly_margin - revenue + crude_cost; // derived
+        // Weekly P&L straight from the LP's truthful daily breakdown (× 7 days). Every
+        // line is a real flow at a real price — nothing is approximated or back-solved.
+        let fin = solve.map(|s| s.finances.clone()).unwrap_or_default();
+        let revenue = fin.revenue() * 7.0;
+        let crude_cost = fin.crude_cost * 7.0;
+        let var_opex = fin.opex * 7.0;
+        let fixed_opex = cfg.fixed_opex_per_week;
+        // Net weekly margin — this is exactly what tick() banks to cash.
+        let weekly_margin = revenue - crude_cost - var_opex - fixed_opex;
 
         let units = self
             .units
@@ -241,10 +235,10 @@ impl GameState {
                 let (maint_str, maint_weeks) = match &u.maintenance {
                     crate::equipment::MaintenanceStatus::Running => ("Running".to_string(), None),
                     crate::equipment::MaintenanceStatus::InTurnaround { weeks_remaining } => {
-                        (format!("Turnaround"), Some(*weeks_remaining))
+                        ("Turnaround".to_string(), Some(*weeks_remaining))
                     }
                     crate::equipment::MaintenanceStatus::Tripped { weeks_remaining } => {
-                        (format!("Tripped!"), Some(*weeks_remaining))
+                        ("Tripped!".to_string(), Some(*weeks_remaining))
                     }
                 };
 
@@ -338,7 +332,8 @@ impl GameState {
             crude_charge,
             revenue,
             crude_cost,
-            opex,
+            variable_opex: var_opex,
+            fixed_opex,
         }
     }
 }

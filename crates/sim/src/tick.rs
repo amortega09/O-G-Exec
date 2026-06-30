@@ -49,6 +49,46 @@ pub fn new_game(refinery: Refinery, cfg: &GameConfig, seed: u64) -> GameState {
     }
 }
 
+/// £/bbl objective swing applied to a product at full (±1) tilt.
+const TILT_STRENGTH: f64 = 8.0;
+
+/// Translate the player's two operating sliders into LP [`SolveOptions`].
+///
+/// - **Severity** (0..1) maps to a feed-weighted-average severity *floor* between the
+///   FCC's lowest and highest mode severities, so cranking it forces feed through the
+///   high-severity recipe: more gasoline/LPG, but more opex now and faster degradation.
+/// - **Product tilt** (-1..1) adds a ±`TILT_STRENGTH` £/bbl preference to diesel vs
+///   gasoline, nudging the slate without dictating flows. It is removed from reported
+///   margin inside the LP, so cash stays honest.
+fn build_solve_options(state: &GameState) -> refinery_lp::solve::SolveOptions {
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for conv in &state.refinery.conversions {
+        for m in &conv.modes {
+            lo = lo.min(m.severity);
+            hi = hi.max(m.severity);
+        }
+    }
+    let min_severity = if hi > lo {
+        Some(lo + state.player.severity_target.clamp(0.0, 1.0) * (hi - lo))
+    } else {
+        None
+    };
+
+    let tilt = state.player.product_tilt.clamp(-1.0, 1.0);
+    let product_bonus = state
+        .refinery
+        .products
+        .iter()
+        .map(|p| match p.name.as_str() {
+            "diesel" => tilt * TILT_STRENGTH,
+            "gasoline" => -tilt * TILT_STRENGTH,
+            _ => 0.0,
+        })
+        .collect();
+
+    refinery_lp::solve::SolveOptions { min_severity, product_bonus }
+}
+
 /// Advance the game by one tick (one week). Returns the updated GameView.
 pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -> GameView {
     if state.status != GameStatus::Running {
@@ -157,8 +197,9 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
             * state.units[i + 1].capacity_factor();
     }
 
-    // --- 4. Solve LP ---
-    let solve_result = refinery_lp::solve::solve(&state.refinery);
+    // --- 4. Solve LP under the player's operating policy (Level-2 sliders) ---
+    let opts = build_solve_options(state);
+    let solve_result = refinery_lp::solve::solve_opts(&state.refinery, &opts);
 
     // --- 5. Update cash ---
     let daily_margin = solve_result.margin;
@@ -302,7 +343,10 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
     });
 
     // --- 11. Check win/loss ---
-    if state.valuation >= cfg.victory_valuation {
+    // Only crown a win once the trailing window is actually full, so a single strong
+    // week can't end the game (the valuation is a trailing-average board review).
+    let lookback_full = state.week >= cfg.valuation_lookback_weeks;
+    if lookback_full && state.valuation >= cfg.victory_valuation {
         state.status = GameStatus::Won { week: state.week };
         week_events.push(GameEvent {
             week: state.week,
