@@ -5,7 +5,7 @@
   "fixed_opex_per_week": 1200000,
   "victory_valuation": 500000000,
   "valuation_lookback_weeks": 12,
-  "valuation_multiple": 2.2,
+  "valuation_multiple": 2.4,
   "market": {
     "crude_mean": 65.0,
     "crude_reversion": 0.12,
@@ -78,5 +78,10 @@
       "duration_weeks": 12,
       "available_after_week": 4
     }
-  ]
+  ],
+  "execution": {
+    "mean_shortfall": 0.03,
+    "shortfall_sd": 0.025,
+    "min_efficiency": 0.8
+  }
 }

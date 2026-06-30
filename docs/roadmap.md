@@ -28,9 +28,11 @@ The architectural pivot from deterministic calculator to FM-style simulation.
 - [x] **Stochastic outage hazard** ([equipment.rs](../crates/sim/src/equipment.rs)) —
   trip probability rises non-linearly as health falls and with how hard you run; the
   deterministic threshold is gone. `outage_risk` surfaced per unit in the UI.
-- [ ] **Execution noise**: realized output = LP plan × stochastic factors (the
-  match-engine gap between plan and reality). Must scale the `Finances` breakdown too so
-  the P&L still reconciles to cash.
+- [x] **Execution noise** ([config.rs](../crates/sim/src/config.rs) `ExecutionConfig`,
+  [solve.rs](../crates/refinery-lp/src/solve.rs) `SolveResult::scaled`): realized output
+  = LP plan × a per-week efficiency factor (≤ 1, its own RNG stream). Scales the whole
+  solve incl. the `Finances` breakdown, so throughput/degradation/P&L stay consistent and
+  reconcile to cash. Surfaced as "Execution vs Plan %".
 - [ ] **Typed event queue** alongside the tick pipeline: physics emits events; entities
   react and emit more; some surface as player choices. *Defer until there are entities
   (people/competitors) that need to react — don't build the bus before there's traffic.*

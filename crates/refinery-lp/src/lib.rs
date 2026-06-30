@@ -167,6 +167,20 @@ mod tests {
     }
 
     #[test]
+    fn scaling_preserves_reconciliation_and_is_linear() {
+        // Execution noise scales the whole solve; the P&L must still reconcile and the
+        // result must shrink linearly (margin can't be created by under-running).
+        let r = phase0_refinery();
+        let full = solve::solve(&r);
+        let f = 0.9;
+        let scaled = full.scaled(f);
+        assert!((scaled.finances.margin() - scaled.margin).abs() < 1e-6);
+        assert!((scaled.margin - full.margin * f).abs() < 1e-3);
+        assert!((scaled.crude_charge - full.crude_charge * f).abs() < 1e-3);
+        assert!((scaled.finances.product_revenue - full.finances.product_revenue * f).abs() < 1e-3);
+    }
+
+    #[test]
     fn capacity_shadow_prices_nonnegative() {
         let r = phase0_refinery();
         for (name, sp) in solve::capacity_shadow_prices(&r, 100.0) {

@@ -120,6 +120,25 @@ mod tests {
     }
 
     #[test]
+    fn execution_efficiency_in_range_and_varies() {
+        // Realized efficiency must stay in [min, 1] (never beats plan) and actually vary.
+        let cfg = test_config();
+        let mut s = new_game(test_refinery(), &cfg, 42);
+        let mut seen = std::collections::HashSet::new();
+        for _ in 0..50 {
+            let v = tick(&mut s, &[], &cfg);
+            assert!(
+                v.execution_efficiency >= cfg.execution.min_efficiency - 1e-9
+                    && v.execution_efficiency <= 1.0 + 1e-9,
+                "efficiency out of range: {}",
+                v.execution_efficiency
+            );
+            seen.insert((v.execution_efficiency * 1000.0) as i64);
+        }
+        assert!(seen.len() > 5, "execution efficiency should vary week to week");
+    }
+
+    #[test]
     fn outage_timing_is_stochastic_across_seeds() {
         // The reliability gamble must actually be random: different seeds should produce
         // different first-trip timing (whereas a given seed stays deterministic — see

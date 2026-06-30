@@ -296,6 +296,44 @@ fn solve_with(
     }
 }
 
+impl SolveResult {
+    /// Scale the entire result by a realized-execution factor `f` ∈ (0, 1]: throughput,
+    /// flows, and every line of the `Finances` breakdown shrink together. Because the LP
+    /// is linear in the flows, `margin == finances.margin()` is preserved, so the P&L
+    /// still reconciles to cash. Capacities and severity ratios are left unchanged.
+    pub fn scaled(&self, f: f64) -> SolveResult {
+        let scale_unit = |u: &UnitResult| UnitResult {
+            name: u.name.clone(),
+            throughput: u.throughput * f,
+            capacity: u.capacity,
+            realised_severity: u.realised_severity,
+            per_mode: u.per_mode.iter().map(|(n, v)| (n.clone(), v * f)).collect(),
+        };
+        SolveResult {
+            margin: self.margin * f,
+            finances: Finances {
+                product_revenue: self.finances.product_revenue * f,
+                byproduct_revenue: self.finances.byproduct_revenue * f,
+                crude_cost: self.finances.crude_cost * f,
+                opex: self.finances.opex * f,
+            },
+            crude_charge: self.crude_charge * f,
+            adu: scale_unit(&self.adu),
+            conversions: self.conversions.iter().map(scale_unit).collect(),
+            products: self
+                .products
+                .iter()
+                .map(|p| ProductResult {
+                    name: p.name.clone(),
+                    volume: p.volume * f,
+                    blend: p.blend.iter().map(|(n, v)| (n.clone(), v * f)).collect(),
+                })
+                .collect(),
+            sales: self.sales.iter().map(|(n, v)| (n.clone(), v * f)).collect(),
+        }
+    }
+}
+
 fn one(id: usize) -> BTreeMap<usize, f64> {
     let mut m = BTreeMap::new();
     m.insert(id, 1.0);

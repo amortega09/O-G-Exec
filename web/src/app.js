@@ -512,8 +512,14 @@ function renderPnl(view) {
 
   const margin = view.weekly_margin;
   const deltaCash = margin - view.interest;
+  const effPct = (view.execution_efficiency ?? 1) * 100;
+  const effColor = effPct >= 97 ? '#00e676' : effPct >= 92 ? '#ffb300' : '#ff5252';
 
   container.innerHTML = `
+    <div class="ledger-row">
+      <span class="ledger-label">Execution vs Plan</span>
+      <span class="ledger-value mono" style="color:${effColor}">${effPct.toFixed(0)}% of optimum</span>
+    </div>
     <div class="ledger-row">
       <span class="ledger-label">Finished Product Sales</span>
       <span class="ledger-value credit">${formatMoney(view.revenue)}</span>

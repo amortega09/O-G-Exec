@@ -45,6 +45,7 @@ pub fn new_game(refinery: Refinery, cfg: &GameConfig, seed: u64) -> GameState {
         history: Vec::new(),
         events: Vec::new(),
         rng: RngStreams::from_seed(seed),
+        last_execution_efficiency: 1.0,
         refinery: refinery.clone(),
         base_refinery: refinery,
         last_solve: None,
@@ -225,9 +226,24 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
             * state.units[i + 1].capacity_factor();
     }
 
-    // --- 4. Solve LP under the player's operating policy (Level-2 sliders) ---
+    // --- 4. Solve LP (the optimal plan), then apply execution noise ---
     let opts = build_solve_options(state);
-    let solve_result = refinery_lp::solve::solve_opts(&state.refinery, &opts);
+    let plan = refinery_lp::solve::solve_opts(&state.refinery, &opts);
+    // Realized output falls short of plan by a random amount — the match-engine gap.
+    // Scaling the whole solve keeps throughput, degradation, and the P&L consistent.
+    let exec_efficiency = cfg.execution.draw_efficiency(&mut state.rng.execution);
+    let solve_result = plan.scaled(exec_efficiency);
+    state.last_execution_efficiency = exec_efficiency;
+    if exec_efficiency < 0.92 {
+        week_events.push(GameEvent {
+            week: state.week,
+            message: format!(
+                "Operational shortfall — ran at {:.0}% of plan this week",
+                exec_efficiency * 100.0
+            ),
+            severity: EventSeverity::Warning,
+        });
+    }
 
     // --- 5. Update cash ---
     // Operating margin (EBITDA): banked before interest. Used for valuation.

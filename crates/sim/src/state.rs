@@ -105,6 +105,8 @@ pub struct GameState {
     pub history: Vec<WeekSnapshot>,
     pub events: Vec<GameEvent>,
     pub rng: RngStreams,
+    /// Realized execution efficiency last tick (LP plan actually achieved, 0–1).
+    pub last_execution_efficiency: f64,
 
     // --- Internal: the refinery configs ---
     /// The current refinery config (prices/demands updated each tick).
@@ -137,6 +139,8 @@ pub struct GameView {
     pub shadow_prices: Vec<(String, f64)>,
     /// Net weekly margin banked to cash = revenue − crude − variable_opex − fixed_opex.
     pub weekly_margin: f64,
+    /// Realized execution efficiency this week (LP plan actually achieved, 0–1).
+    pub execution_efficiency: f64,
     pub crude_charge: f64,
     pub revenue: f64,
     pub crude_cost: f64,
@@ -351,6 +355,7 @@ impl GameState {
             events: self.events.clone(),
             shadow_prices,
             weekly_margin,
+            execution_efficiency: self.last_execution_efficiency,
             crude_charge,
             revenue,
             crude_cost,

@@ -22,12 +22,35 @@ pub struct GameConfig {
     pub valuation_multiple: f64,
     /// Market model parameters.
     pub market: MarketConfig,
+    /// Execution (plan-vs-actual) parameters.
+    pub execution: ExecutionConfig,
     /// Debt financing parameters.
     pub finance: FinanceConfig,
     /// Per-unit equipment parameters (aligned to refinery units by name).
     pub equipment: Vec<EquipmentConfig>,
     /// Capital projects available to the player.
     pub projects: Vec<ProjectConfig>,
+}
+
+/// Plan-vs-actual execution. The LP gives the optimal *plan*; reality falls short of it
+/// by a random amount each week (operator variance, minor slowdowns, off-spec batches).
+/// Realized efficiency never exceeds 1.0 — you can't beat the optimum.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ExecutionConfig {
+    /// Average shortfall below plan (e.g. 0.03 = 97% of plan on average).
+    pub mean_shortfall: f64,
+    /// Standard deviation of the shortfall.
+    pub shortfall_sd: f64,
+    /// Floor on realized efficiency — the worst a normal week gets.
+    pub min_efficiency: f64,
+}
+
+impl ExecutionConfig {
+    /// Draw this week's realized efficiency factor in [`min_efficiency`, 1.0].
+    pub fn draw_efficiency(&self, rng: &mut crate::rng::Rng) -> f64 {
+        let shortfall = (self.mean_shortfall + rng.normal() * self.shortfall_sd).max(0.0);
+        (1.0 - shortfall).clamp(self.min_efficiency, 1.0)
+    }
 }
 
 /// Debt financing parameters.
