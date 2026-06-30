@@ -3,147 +3,400 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>O&amp;G Exec — Refinery Business Simulation</title>
+  <title>O&amp;G Exec — Refinery Business Simulator</title>
   <meta name="description" content="Run a refinery, optimise margins, manage equipment, and build a £500M business. A browser-based oil refinery strategy game powered by real linear programming." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
-  <div id="app">
+  <div id="app" class="app-layout">
     <!-- Loading Screen -->
     <div id="loading-screen" class="loading-screen">
       <div class="loading-content">
         <div class="loading-icon">
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-            <circle cx="32" cy="32" r="28" stroke="url(#grad)" stroke-width="3" stroke-dasharray="140 40" stroke-linecap="round">
-              <animateTransform attributeName="transform" type="rotate" dur="1.2s" from="0 32 32" to="360 32 32" repeatCount="indefinite"/>
+          <svg width="80" height="80" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="28" stroke="url(#grad)" stroke-width="4" stroke-dasharray="120 40" stroke-linecap="round">
+              <animateTransform attributeName="transform" type="rotate" dur="1s" from="0 32 32" to="360 32 32" repeatCount="indefinite"/>
             </circle>
-            <defs><linearGradient id="grad" x1="0" y1="0" x2="64" y2="64"><stop offset="0%" stop-color="#1a73e8"/><stop offset="100%" stop-color="#00c853"/></linearGradient></defs>
+            <defs>
+              <linearGradient id="grad" x1="0" y1="0" x2="64" y2="64">
+                <stop offset="0%" stop-color="#00e5ff"/>
+                <stop offset="100%" stop-color="#00e676"/>
+              </linearGradient>
+            </defs>
           </svg>
         </div>
-        <h1 class="loading-title">O&amp;G Exec</h1>
-        <p class="loading-subtitle">Initialising simulation engine…</p>
+        <h1 class="loading-title">O&amp;G EXEC</h1>
+        <p class="loading-subtitle">Calibrating LP Solver &amp; Initialising Telemetry…</p>
       </div>
     </div>
 
-    <!-- Main Dashboard -->
-    <div id="dashboard" class="dashboard hidden">
-      <!-- Header Bar -->
-      <header id="header" class="header">
-        <div class="header-brand">
-          <h1 class="brand-title">O&amp;G Exec</h1>
-          <span class="brand-badge">SIMULATION</span>
-        </div>
-        <div class="header-stats">
-          <div class="stat-chip">
-            <span class="stat-label">Week</span>
-            <span id="stat-week" class="stat-value mono">0</span>
+    <!-- Main Sidebar -->
+    <aside class="sidebar" id="main-sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
           </div>
-          <div class="stat-chip cash">
-            <span class="stat-label">Cash</span>
-            <span id="stat-cash" class="stat-value mono">£0</span>
-          </div>
-          <div class="stat-chip valuation">
-            <span class="stat-label">Valuation</span>
-            <span id="stat-valuation" class="stat-value mono">£0</span>
-          </div>
-          <div class="valuation-bar-container">
-            <div id="valuation-bar" class="valuation-bar" style="width: 0%"></div>
-            <span id="valuation-pct" class="valuation-pct">0%</span>
+          <div class="brand-text">
+            <span class="brand-name">O&amp;G Exec</span>
+            <span class="brand-tagline">Refinery Simulator</span>
           </div>
         </div>
-        <div class="header-controls">
-          <button id="btn-pause" class="btn btn-icon" title="Pause">⏸</button>
-          <button id="btn-play" class="btn btn-icon active" title="Play">▶</button>
-          <button id="btn-fast" class="btn btn-icon" title="Fast (5×)">⏩</button>
-          <button id="btn-step" class="btn btn-secondary" title="Single tick">Step</button>
+        <div class="sidebar-actions">
+          <button id="btn-pin-sidebar" class="sidebar-action-btn pinned" title="Unpin Sidebar">📌</button>
+          <button id="btn-toggle-sidebar" class="sidebar-action-btn" title="Collapse Sidebar">◀</button>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-btn active" data-tab="overview" id="nav-tab-overview">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Dashboard</span>
+        </button>
+        <button class="nav-btn" data-tab="operations" id="nav-tab-operations">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">Operations</span>
+        </button>
+        <button class="nav-btn" data-tab="engineering" id="nav-tab-engineering">
+          <span class="nav-icon">🛠️</span>
+          <span class="nav-label">Engineering</span>
+        </button>
+        <button class="nav-btn" data-tab="finance" id="nav-tab-finance">
+          <span class="nav-icon">🏦</span>
+          <span class="nav-label">Finance</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="time-widget">
+          <span class="widget-title">CALENDAR</span>
+          <div class="time-display">
+            <span class="time-week mono">WEEK <span id="stat-week">0</span></span>
+          </div>
+        </div>
+        <div class="control-console">
+          <button id="btn-pause" class="btn btn-control" title="Pause">⏸</button>
+          <button id="btn-play" class="btn btn-control active" title="Play">▶</button>
+          <button id="btn-fast" class="btn btn-control" title="Fast (5×)">⏩</button>
+          <button id="btn-step" class="btn btn-step" title="Single Tick">STEP</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Telemetry Bar -->
+      <header class="telemetry-bar">
+        <div class="telemetry-card cash">
+          <span class="telemetry-label">Available Cash</span>
+          <span id="stat-cash" class="telemetry-value mono">£0</span>
+          <span id="trend-cash" class="telemetry-trend mono">--</span>
+        </div>
+        <div class="telemetry-card valuation">
+          <span class="telemetry-label">Enterprise Value</span>
+          <span id="stat-valuation" class="telemetry-value mono">£0</span>
+          <span id="trend-valuation" class="telemetry-trend mono">--</span>
+        </div>
+        <div class="telemetry-card debt">
+          <span class="telemetry-label">Outstanding Debt</span>
+          <span id="stat-debt" class="telemetry-value mono">£0</span>
+          <span id="trend-debt" class="telemetry-trend mono">--</span>
+        </div>
+        <div class="telemetry-card target">
+          <div class="target-header">
+            <span class="telemetry-label">Board Win Target</span>
+            <span id="valuation-pct" class="target-pct mono">0%</span>
+          </div>
+          <div class="target-bar-track">
+            <div id="valuation-bar" class="target-bar-fill"></div>
+          </div>
         </div>
       </header>
 
-      <!-- Dashboard Grid -->
-      <main class="grid">
-        <!-- Left Column -->
-        <section id="panel-units" class="panel">
-          <h2 class="panel-title">Refinery Status</h2>
-          <div id="units-content" class="panel-body"></div>
-        </section>
+      <!-- Dashboard View (Overview Tab) -->
+      <div id="tab-overview" class="tab-panel">
+        <div class="dashboard-grid">
+          <!-- Central Tactical Board (SVG Schematic) -->
+          <div class="panel grid-span-2">
+            <div class="panel-header">
+              <h2 class="panel-title">Refinery Flow schematic</h2>
+              <div class="panel-badge active">LIVE SYSTEM FEED</div>
+            </div>
+            <div class="panel-body schematic-container">
+              <svg id="refinery-schematic" viewBox="0 0 800 400" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                  <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="4" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                  <filter id="glow-amber" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="5" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                  <filter id="glow-red" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="5" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
 
-        <section id="panel-pnl" class="panel">
-          <h2 class="panel-title">Weekly P&amp;L</h2>
-          <div id="pnl-content" class="panel-body"></div>
-        </section>
+                <!-- Static Background Pipes -->
+                <path d="M 40,180 L 120,180" class="pipe-track" />
+                <path d="M 160,80 L 320,80 L 320,100 L 500,100" class="pipe-track" />
+                <path d="M 160,180 L 220,180" class="pipe-track" />
+                <path d="M 220,180 L 500,180" class="pipe-track" />
+                <path d="M 220,180 L 220,260 L 260,260" class="pipe-track" />
+                <path d="M 160,280 L 500,280" class="pipe-track" />
+                <path d="M 320,240 L 380,240 L 380,120 L 500,120" class="pipe-track" />
+                <path d="M 320,260 L 400,260 L 400,200 L 500,200" class="pipe-track" />
+                <path d="M 320,295 L 500,320" class="pipe-track" />
 
-        <!-- Centre Column -->
-        <section id="panel-history" class="panel panel-wide">
-          <h2 class="panel-title">Performance History</h2>
-          <div class="panel-body chart-container">
-            <canvas id="chart-history" width="800" height="280"></canvas>
+                <!-- Pulsing Flow Paths -->
+                <path id="flow-crude" d="M 40,180 L 120,180" class="pipe-flow crude-flow" />
+                <path id="flow-naphtha" d="M 160,80 L 320,80 L 320,100 L 500,100" class="pipe-flow naphtha-flow" />
+                <path id="flow-gasoil-to-diesel" d="M 220,180 L 500,180" class="pipe-flow gasoil-flow" />
+                <path id="flow-gasoil-to-fcc" d="M 220,180 L 220,260 L 260,260" class="pipe-flow gasoil-fcc-flow" />
+                <path id="flow-residue" d="M 160,280 L 500,280" class="pipe-flow residue-flow" />
+                <path id="flow-fcc-gaso" d="M 320,240 L 380,240 L 380,120 L 500,120" class="pipe-flow fcc-gaso-flow" />
+                <path id="flow-lco" d="M 320,260 L 400,260 L 400,200 L 500,200" class="pipe-flow lco-flow" />
+                <path id="flow-fcc-byproducts" d="M 320,295 L 500,320" class="pipe-flow byproducts-flow" />
+
+                <!-- Node Layout -->
+                <g id="node-crude" class="refinery-node supply" transform="translate(10, 150)">
+                  <rect width="60" height="60" rx="8" />
+                  <text x="30" y="32" class="node-label">CRUDE</text>
+                  <text id="schematic-crude-price" x="30" y="48" class="node-price mono">£65.00</text>
+                </g>
+
+                <g id="node-adu" class="refinery-node unit" transform="translate(120, 50)">
+                  <rect width="40" height="250" rx="8" />
+                  <text x="20" y="130" transform="rotate(-90 20 130)" class="node-label font-bold">ADU COLUMN</text>
+                </g>
+
+                <g id="node-fcc" class="refinery-node unit" transform="translate(260, 210)">
+                  <rect width="60" height="100" rx="8" />
+                  <text x="30" y="45" class="node-label font-bold">FCC</text>
+                  <text id="schematic-fcc-util" x="30" y="65" class="node-price mono">0%</text>
+                </g>
+
+                <g id="node-gasoline" class="refinery-node product" transform="translate(500, 70)">
+                  <rect width="120" height="60" rx="8" />
+                  <text x="60" y="24" class="node-label font-bold">GASOLINE</text>
+                  <text id="schematic-gasoline-val" x="60" y="44" class="node-value mono">0 bbl/d</text>
+                </g>
+
+                <g id="node-diesel" class="refinery-node product" transform="translate(500, 160)">
+                  <rect width="120" height="60" rx="8" />
+                  <text x="60" y="24" class="node-label font-bold">DIESEL</text>
+                  <text id="schematic-diesel-val" x="60" y="44" class="node-value mono">0 bbl/d</text>
+                </g>
+
+                <g id="node-byproducts" class="refinery-node disposition" transform="translate(500, 255)">
+                  <rect width="120" height="90" rx="8" />
+                  <text x="60" y="22" class="node-label font-bold">DISPOSITIONS</text>
+                  <text id="schematic-lpg-val" x="60" y="42" class="node-value-sub mono">LPG: 0</text>
+                  <text id="schematic-residue-val" x="60" y="59" class="node-value-sub mono">Residue: 0</text>
+                  <text id="schematic-coke-val" x="60" y="76" class="node-value-sub mono">Coke: 0</text>
+                </g>
+              </svg>
+            </div>
           </div>
-        </section>
 
-        <section id="panel-market" class="panel">
-          <h2 class="panel-title">Market Prices</h2>
-          <div id="market-content" class="panel-body"></div>
-        </section>
-
-        <section id="panel-products" class="panel">
-          <h2 class="panel-title">Product Slate</h2>
-          <div id="products-content" class="panel-body"></div>
-        </section>
-
-        <!-- Right Column -->
-        <section id="panel-controls" class="panel">
-          <h2 class="panel-title">Operations</h2>
-          <div id="controls-content" class="panel-body">
-            <div class="control-group">
-              <label class="control-label">FCC Severity Target</label>
-              <div class="slider-row">
-                <input type="range" id="slider-severity" min="0" max="100" value="50" class="slider" />
-                <span id="severity-value" class="slider-value mono">0.50</span>
-              </div>
+          <!-- Market & Spreads Card -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Market Telemetry</h2>
             </div>
-            <div class="control-group">
-              <label class="control-label">Product Tilt</label>
-              <div class="slider-row">
-                <span class="slider-label-end">Gasoline</span>
-                <input type="range" id="slider-tilt" min="-100" max="100" value="0" class="slider" />
-                <span class="slider-label-end">Diesel</span>
-              </div>
-            </div>
-            <div class="control-group">
-              <h3 class="control-subtitle">Maintenance</h3>
-              <div id="maintenance-buttons"></div>
-            </div>
-            <div class="control-group">
-              <h3 class="control-subtitle">Capital Projects</h3>
-              <div id="projects-list"></div>
-            </div>
-            <div class="control-group">
-              <h3 class="control-subtitle">Financing</h3>
-              <div id="finance-content"></div>
-              <div class="finance-buttons" style="display:flex; gap:8px; margin-top:8px;">
-                <button id="btn-borrow" class="btn btn-secondary">Borrow £20M</button>
-                <button id="btn-repay" class="btn btn-secondary">Repay £20M</button>
-              </div>
+            <div id="market-content" class="panel-body">
+              <!-- Rendered Dynamically -->
             </div>
           </div>
-        </section>
 
-        <section id="panel-events" class="panel">
-          <h2 class="panel-title">Event Log</h2>
-          <div id="events-content" class="panel-body events-scroll"></div>
-        </section>
-      </main>
-
-      <!-- Game Over Overlay -->
-      <div id="game-over" class="overlay hidden">
-        <div class="overlay-content">
-          <h2 id="game-over-title" class="overlay-title"></h2>
-          <p id="game-over-message" class="overlay-message"></p>
-          <button id="btn-restart" class="btn btn-primary">Play Again</button>
+          <!-- Performance Ticker (Event Log) -->
+          <div class="panel grid-span-3">
+            <div class="panel-header">
+              <h2 class="panel-title">Corporate Communications &amp; Incidents</h2>
+              <div class="panel-badge scrollable-badge">TELEMETRY FEED</div>
+            </div>
+            <div class="panel-body events-console-wrapper">
+              <div id="events-content" class="events-scroll"></div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <!-- Operations View (Operations Tab) -->
+      <div id="tab-operations" class="tab-panel hidden">
+        <div class="dashboard-grid">
+          <!-- Control Sliders Panel -->
+          <div class="panel grid-span-2">
+            <div class="panel-header">
+              <h2 class="panel-title">Unit Optimisation &amp; Tilts</h2>
+            </div>
+            <div class="panel-body operations-sliders">
+              <!-- FCC Severity -->
+              <div class="control-card">
+                <div class="control-header">
+                  <div>
+                    <span class="control-main-label">FCC Reactor Severity Target</span>
+                    <p class="control-desc">Controls the cracking intensity. Higher severity yields more premium gasoline, but accelerates catalyst degradation and risks reactor trip.</p>
+                  </div>
+                  <span id="severity-value" class="control-badge mono">0.50</span>
+                </div>
+                <div class="control-slider-container">
+                  <button class="slider-adjust-btn" id="btn-sev-down">-</button>
+                  <input type="range" id="slider-severity" min="0" max="100" value="50" class="control-slider" />
+                  <button class="slider-adjust-btn" id="btn-sev-up">+</button>
+                </div>
+              </div>
+
+              <!-- Product Tilt -->
+              <div class="control-card">
+                <div class="control-header">
+                  <div>
+                    <span class="control-main-label">Product slate Tilt bias</span>
+                    <p class="control-desc">Taps into linear program coefficients to bias blending preference towards Gasoline (left) or Diesel (right) when margins are close.</p>
+                  </div>
+                  <span id="tilt-value" class="control-badge mono">Neutral</span>
+                </div>
+                <div class="control-slider-container">
+                  <span class="slider-lbl">Gasoline</span>
+                  <button class="slider-adjust-btn" id="btn-tilt-down">-</button>
+                  <input type="range" id="slider-tilt" min="-100" max="100" value="0" class="control-slider" />
+                  <button class="slider-adjust-btn" id="btn-tilt-up">+</button>
+                  <span class="slider-lbl">Diesel</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Product Slate Panel -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Product Blend Pool</h2>
+            </div>
+            <div id="products-content" class="panel-body products-cards-wrapper">
+              <!-- Rendered Dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Engineering & Assets View (Engineering Tab) -->
+      <div id="tab-engineering" class="tab-panel hidden">
+        <div class="dashboard-grid">
+          <!-- Asset Status Dials -->
+          <div class="panel grid-span-2">
+            <div class="panel-header">
+              <h2 class="panel-title">Asset Integrity &amp; Telemetry</h2>
+            </div>
+            <div class="panel-body engineering-panel">
+              <div id="units-content" class="units-dials-container">
+                <!-- Rendered dynamically as radial progress indicators -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Maintenance Scheduling -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Turnaround &amp; Reliability</h2>
+            </div>
+            <div class="panel-body turnaround-actions-wrapper">
+              <p class="section-instruction-text">Scheduling a turnaround shuts down the unit temporarily to fully repair and restore health to 100%.</p>
+              <div id="maintenance-buttons" class="maintenance-cards-list">
+                <!-- Rendered dynamically -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Capital Projects -->
+          <div class="panel grid-span-3">
+            <div class="panel-header">
+              <h2 class="panel-title">Capital Investment Board (Debottlenecking)</h2>
+              <div class="panel-badge">CAPEX BUDGET</div>
+            </div>
+            <div class="panel-body">
+              <div id="projects-list" class="projects-grid">
+                <!-- Rendered dynamically -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Corporate Finance View (Finance Tab) -->
+      <div id="tab-finance" class="tab-panel hidden">
+        <div class="dashboard-grid">
+          <!-- Cashflow Statement / Ledger -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Operating Statement (P&amp;L)</h2>
+            </div>
+            <div id="pnl-content" class="panel-body pnl-table-wrapper">
+              <!-- Rendered Dynamically -->
+            </div>
+          </div>
+
+          <!-- Performance History Plots -->
+          <div class="panel grid-span-2">
+            <div class="panel-header">
+              <h2 class="panel-title">Performance Analytics History</h2>
+              <div class="panel-badge">REAL-TIME MULTI-AXIS CHART</div>
+            </div>
+            <div class="panel-body chart-wrapper">
+              <canvas id="chart-history"></canvas>
+            </div>
+          </div>
+
+          <!-- Debt Financing Slider Card -->
+          <div class="panel grid-span-3">
+            <div class="panel-header">
+              <h2 class="panel-title">Corporate Credit &amp; Debt Facility</h2>
+            </div>
+            <div class="panel-body finance-facility-grid">
+              <div id="finance-content" class="finance-telemetry">
+                <!-- Rendered Dynamically -->
+              </div>
+              <div class="debt-slider-control">
+                <span class="field-label">Adjust Leverage Position</span>
+                <div class="debt-slider-container-row">
+                  <button class="btn btn-secondary" id="btn-repay-quick">Repay £20M</button>
+                  <input type="range" id="slider-debt-adjust" min="0" max="100" value="0" class="control-slider flex-grow" />
+                  <button class="btn btn-success" id="btn-borrow-quick">Borrow £20M</button>
+                </div>
+                <p class="debt-warning-text">Interest is calculated weekly. Drawing debt provides immediate cash for large CAPEX expansion but risks cash insolvency if spreads collapse.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Game Over Overlay -->
+    <div id="game-over" class="overlay hidden">
+      <div class="overlay-content">
+        <div class="game-over-art">
+          <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <h2 id="game-over-title" class="overlay-title"></h2>
+        <p id="game-over-message" class="overlay-message"></p>
+        <button id="btn-restart" class="btn btn-primary">Initialise New Campaign</button>
       </div>
     </div>
   </div>

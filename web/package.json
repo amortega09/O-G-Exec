@@ -12,10 +12,12 @@
     "preview": "vite preview",
     "wasm": "wasm-pack build ../crates/wasm-bridge --target web --out-dir ../../web/pkg"
   },
-  "dependencies": {},
+  "dependencies": {
+    "chart.js": "^4.5.1"
+  },
   "devDependencies": {
     "vite": "^6.0.0",
-    "vite-plugin-wasm": "^3.4.0",
-    "vite-plugin-top-level-await": "^1.4.0"
+    "vite-plugin-top-level-await": "^1.4.0",
+    "vite-plugin-wasm": "^3.4.0"
   }
 }

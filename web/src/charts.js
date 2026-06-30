@@ -1,174 +1,197 @@
-/**
- * charts.js — Lightweight canvas-based sparklines for the performance history panel.
- * No external dependencies. Draws margin and valuation over time.
- */
+import { Chart, registerables } from 'chart.js';
 
-const CHART_COLORS = {
-  margin: { stroke: '#00c853', fill: 'rgba(0, 200, 83, 0.08)' },
-  valuation: { stroke: '#06b6d4', fill: 'rgba(6, 182, 212, 0.06)' },
-  grid: '#1e2536',
-  axis: '#2a3144',
-  text: '#5a6178',
-  background: '#1a1f2e',
-};
+// Register all Chart.js components (controllers, elements, scales, etc.)
+Chart.register(...registerables);
 
 /**
- * Draw the performance history chart on the given canvas.
- * @param {HTMLCanvasElement} canvas
- * @param {Array} history — array of WeekSnapshot objects
- * @param {number} victoryTarget — valuation target in £
+ * Draw the performance history chart using Chart.js.
+ * Reuses or recreates the chart instance bound to the canvas to prevent layering.
+ * 
+ * @param {HTMLCanvasElement} canvas 
+ * @param {Array} history 
+ * @param {number} victoryTarget 
  */
 export function drawHistoryChart(canvas, history, victoryTarget) {
   const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.scale(dpr, dpr);
-
-  const w = rect.width;
-  const h = rect.height;
-  const pad = { top: 20, right: 70, bottom: 30, left: 65 };
-  const plotW = w - pad.left - pad.right;
-  const plotH = h - pad.top - pad.bottom;
-
-  // Clear
-  ctx.fillStyle = CHART_COLORS.background;
-  ctx.fillRect(0, 0, w, h);
-
+  
   if (history.length < 2) {
-    ctx.fillStyle = CHART_COLORS.text;
-    ctx.font = '12px Inter, sans-serif';
+    // Canvas loading state
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '13px Outfit, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Accumulating data…', w / 2, h / 2);
+    ctx.fillText('Accumulating telemetry data...', canvas.width / 2, canvas.height / 2);
     return;
   }
 
-  // Data ranges
-  const margins = history.map(s => s.margin);
-  const valuations = history.map(s => s.valuation);
-  const weeks = history.map(s => s.week);
+  const weeks = history.map(h => `W${h.week}`);
+  const valuations = history.map(h => h.valuation);
+  const margins = history.map(h => h.margin);
+  const debts = history.map(h => h.debt);
+  const targetLine = history.map(() => victoryTarget);
 
-  const maxMargin = Math.max(...margins) * 1.15;
-  const minMargin = Math.min(0, Math.min(...margins) * 1.1);
-  const maxVal = Math.max(victoryTarget, ...valuations) * 1.1;
-
-  // Helper: map value to pixel
-  const xPx = (i) => pad.left + (i / (history.length - 1)) * plotW;
-  const yMargin = (v) => pad.top + plotH - ((v - minMargin) / (maxMargin - minMargin)) * plotH;
-  const yVal = (v) => pad.top + plotH - (v / maxVal) * plotH;
-
-  // Grid lines
-  ctx.strokeStyle = CHART_COLORS.grid;
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = pad.top + (plotH / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(pad.left, y);
-    ctx.lineTo(pad.left + plotW, y);
-    ctx.stroke();
+  // Destroy previous instance to avoid conflicts
+  if (canvas._chart) {
+    canvas._chart.destroy();
   }
 
-  // Victory target line (dashed)
-  ctx.setLineDash([6, 4]);
-  ctx.strokeStyle = 'rgba(6, 182, 212, 0.3)';
-  ctx.lineWidth = 1;
-  const targetY = yVal(victoryTarget);
-  if (targetY > pad.top && targetY < pad.top + plotH) {
-    ctx.beginPath();
-    ctx.moveTo(pad.left, targetY);
-    ctx.lineTo(pad.left + plotW, targetY);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(6, 182, 212, 0.5)';
-    ctx.font = '10px Inter, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('£500M Target', pad.left + plotW + 4, targetY + 4);
-  }
-  ctx.setLineDash([]);
-
-  // --- Margin area fill ---
-  ctx.beginPath();
-  ctx.moveTo(xPx(0), yMargin(0));
-  for (let i = 0; i < history.length; i++) {
-    ctx.lineTo(xPx(i), yMargin(margins[i]));
-  }
-  ctx.lineTo(xPx(history.length - 1), yMargin(0));
-  ctx.closePath();
-  ctx.fillStyle = CHART_COLORS.margin.fill;
-  ctx.fill();
-
-  // --- Margin line ---
-  ctx.beginPath();
-  for (let i = 0; i < history.length; i++) {
-    if (i === 0) ctx.moveTo(xPx(i), yMargin(margins[i]));
-    else ctx.lineTo(xPx(i), yMargin(margins[i]));
-  }
-  ctx.strokeStyle = CHART_COLORS.margin.stroke;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // --- Valuation line ---
-  ctx.beginPath();
-  for (let i = 0; i < history.length; i++) {
-    if (i === 0) ctx.moveTo(xPx(i), yVal(valuations[i]));
-    else ctx.lineTo(xPx(i), yVal(valuations[i]));
-  }
-  ctx.strokeStyle = CHART_COLORS.valuation.stroke;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // --- Axes ---
-  ctx.strokeStyle = CHART_COLORS.axis;
-  ctx.lineWidth = 1;
-  // Left axis (margin)
-  ctx.beginPath();
-  ctx.moveTo(pad.left, pad.top);
-  ctx.lineTo(pad.left, pad.top + plotH);
-  ctx.lineTo(pad.left + plotW, pad.top + plotH);
-  ctx.stroke();
-
-  // Axis labels — left (margin)
-  ctx.fillStyle = CHART_COLORS.margin.stroke;
-  ctx.font = '10px JetBrains Mono, monospace';
-  ctx.textAlign = 'right';
-  for (let i = 0; i <= 4; i++) {
-    const val = minMargin + ((maxMargin - minMargin) / 4) * (4 - i);
-    const y = pad.top + (plotH / 4) * i;
-    ctx.fillText(formatCompact(val), pad.left - 6, y + 4);
-  }
-
-  // Axis labels — right (valuation)
-  ctx.fillStyle = CHART_COLORS.valuation.stroke;
-  ctx.textAlign = 'left';
-  for (let i = 0; i <= 4; i++) {
-    const val = (maxVal / 4) * (4 - i);
-    const y = pad.top + (plotH / 4) * i;
-    ctx.fillText(formatCompact(val), pad.left + plotW + 6, y + 4);
-  }
-
-  // X-axis labels (week numbers)
-  ctx.fillStyle = CHART_COLORS.text;
-  ctx.textAlign = 'center';
-  const step = Math.max(1, Math.floor(history.length / 8));
-  for (let i = 0; i < history.length; i += step) {
-    ctx.fillText(`W${weeks[i]}`, xPx(i), pad.top + plotH + 16);
-  }
-
-  // Legend
-  ctx.font = '10px Inter, sans-serif';
-  const legendY = 10;
-  // Margin
-  ctx.fillStyle = CHART_COLORS.margin.stroke;
-  ctx.fillRect(pad.left, legendY, 12, 3);
-  ctx.fillText('Margin (£/wk)', pad.left + 16, legendY + 4);
-  // Valuation
-  ctx.fillStyle = CHART_COLORS.valuation.stroke;
-  ctx.fillRect(pad.left + 120, legendY, 12, 3);
-  ctx.fillText('Valuation (£)', pad.left + 136, legendY + 4);
+  // Create new Chart.js instance
+  canvas._chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: weeks,
+      datasets: [
+        {
+          label: 'Enterprise Value',
+          data: valuations,
+          borderColor: '#00e5ff',
+          backgroundColor: 'rgba(0, 229, 255, 0.05)',
+          borderWidth: 2.5,
+          tension: 0.2,
+          yAxisID: 'yValuation',
+          fill: true,
+        },
+        {
+          label: 'Weekly Margin (EBITDA)',
+          data: margins,
+          borderColor: '#00e676',
+          backgroundColor: 'transparent',
+          borderWidth: 2.5,
+          tension: 0.1,
+          yAxisID: 'yMargin',
+        },
+        {
+          label: 'Debt Principal',
+          data: debts,
+          borderColor: '#ffb300',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          borderDash: [4, 4],
+          tension: 0,
+          yAxisID: 'yValuation',
+        },
+        {
+          label: 'Target (£500M)',
+          data: targetLine,
+          borderColor: 'rgba(255, 23, 68, 0.4)',
+          borderWidth: 1.5,
+          borderDash: [6, 6],
+          pointRadius: 0,
+          tension: 0,
+          yAxisID: 'yValuation',
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            color: '#94a3b8',
+            font: {
+              family: 'Outfit, sans-serif',
+              size: 11
+            },
+            padding: 15
+          }
+        },
+        tooltip: {
+          backgroundColor: '#0f1424',
+          titleColor: '#38bdf8',
+          titleFont: { family: 'Outfit', size: 12, weight: 'bold' },
+          bodyColor: '#f1f5f9',
+          bodyFont: { family: 'JetBrains Mono', size: 11 },
+          borderColor: '#1e2640',
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: function(context) {
+              let label = context.dataset.label || '';
+              if (label) {
+                label += ': ';
+              }
+              if (context.parsed.y !== null) {
+                label += formatMoney(context.parsed.y);
+              }
+              return label;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            color: 'rgba(30, 38, 64, 0.3)',
+            drawBorder: false
+          },
+          ticks: {
+            color: '#475569',
+            font: { family: 'JetBrains Mono', size: 9 }
+          }
+        },
+        yValuation: {
+          type: 'linear',
+          position: 'left',
+          grid: {
+            color: 'rgba(30, 38, 64, 0.3)',
+            drawBorder: false
+          },
+          ticks: {
+            color: '#00e5ff',
+            font: { family: 'JetBrains Mono', size: 9 },
+            callback: function(value) {
+              return formatCompact(value);
+            }
+          },
+          title: {
+            display: true,
+            text: 'Valuation / Debt (£)',
+            color: '#00e5ff',
+            font: { family: 'Outfit', size: 10 }
+          }
+        },
+        yMargin: {
+          type: 'linear',
+          position: 'right',
+          grid: {
+            drawOnChartArea: false, // Only draw grid lines for the left axis
+            drawBorder: false
+          },
+          ticks: {
+            color: '#00e676',
+            font: { family: 'JetBrains Mono', size: 9 },
+            callback: function(value) {
+              return formatCompact(value);
+            }
+          },
+          title: {
+            display: true,
+            text: 'EBITDA Margin (£/wk)',
+            color: '#00e676',
+            font: { family: 'Outfit', size: 10 }
+          }
+        }
+      }
+    }
+  });
 }
 
-/** Format a number in compact form (e.g. 1.2M, 450K). */
+function formatMoney(n) {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1e9) return sign + '£' + (abs / 1e9).toFixed(2) + 'B';
+  if (abs >= 1e6) return sign + '£' + (abs / 1e6).toFixed(1) + 'M';
+  if (abs >= 1e3) return sign + '£' + (abs / 1e3).toFixed(0) + 'K';
+  return sign + '£' + abs.toFixed(0);
+}
+
 function formatCompact(n) {
   const abs = Math.abs(n);
   const sign = n < 0 ? '-' : '';
