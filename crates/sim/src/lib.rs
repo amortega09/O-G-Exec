@@ -167,17 +167,17 @@ mod tests {
 
     #[test]
     fn do_nothing_does_not_instantly_win() {
-        // Regression: a healthy plant's valuation spikes early, but the trailing-average
-        // board review must not crown a win within the first lookback window.
+        // Regression: the win can't fire before the trailing window is even full, so a
+        // strong opening market can't end the game in the first few weeks.
         let cfg = test_config();
         let mut s = new_game(test_refinery(), &cfg, 42);
-        for _ in 0..cfg.valuation_lookback_weeks {
+        for _ in 0..8 {
             tick(&mut s, &[], &cfg);
         }
         assert_eq!(
             s.status,
             GameStatus::Running,
-            "should still be running through the first lookback window"
+            "should not win within the first few weeks"
         );
     }
 

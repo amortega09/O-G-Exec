@@ -92,8 +92,27 @@ pub struct MarketConfig {
     pub spread_reversion: f64,
     /// Seasonal amplitude for gasoline spread (£/bbl). Peaks in "summer" (weeks 20-32).
     pub gasoline_seasonal_amplitude: f64,
+    /// Seasonal amplitude for diesel spread (£/bbl). Peaks in winter (opposite phase).
+    pub diesel_seasonal_amplitude: f64,
     /// Demand ceiling fluctuation (fraction, e.g. 0.10 = ±10%).
     pub demand_volatility: f64,
+    /// Discrete fat-tail shocks (supply/demand/OPEC/refining). See market-calibration.md.
+    pub shocks: Vec<MarketShock>,
+}
+
+/// A low-probability multiplicative jump to the price level or cracks — the fat tail of
+/// the oil market. The weak mean-reversion then decays it over months, like a real shock.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MarketShock {
+    pub name: String,
+    /// Per-week probability of firing.
+    pub weekly_probability: f64,
+    /// Multiplier applied to the crude price, drawn uniformly in [min, max].
+    pub crude_mult_min: f64,
+    pub crude_mult_max: f64,
+    /// Multiplier applied to both crack spreads, drawn uniformly in [min, max].
+    pub crack_mult_min: f64,
+    pub crack_mult_max: f64,
 }
 
 /// Per-unit equipment degradation and maintenance parameters.

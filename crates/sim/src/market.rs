@@ -59,9 +59,13 @@ impl MarketState {
             cfg.spread_reversion * (gasoline_target - self.gasoline_spread) + gaso_noise;
         self.gasoline_spread = self.gasoline_spread.max(2.0); // minimum spread
 
+        // Diesel/middle-distillate cracks peak in winter (opposite phase to gasoline).
+        let diesel_seasonal = cfg.diesel_seasonal_amplitude
+            * (2.0 * std::f64::consts::PI * (week as f64 - 46.0) / 52.0).sin();
+        let diesel_target = cfg.diesel_spread_mean + diesel_seasonal;
         let diesel_noise = rng.normal() * cfg.spread_volatility;
         self.diesel_spread +=
-            cfg.spread_reversion * (cfg.diesel_spread_mean - self.diesel_spread) + diesel_noise;
+            cfg.spread_reversion * (diesel_target - self.diesel_spread) + diesel_noise;
         self.diesel_spread = self.diesel_spread.max(2.0);
 
         // --- Product prices ---
@@ -78,5 +82,37 @@ impl MarketState {
         self.diesel_demand = (base_diesel_demand * (1.0 + demand_noise_d))
             .max(base_diesel_demand * 0.7)
             .min(base_diesel_demand * 1.3);
+    }
+
+    /// Roll the discrete fat-tail shocks (supply/demand/OPEC/refining). Each that fires
+    /// applies a multiplicative jump to the price level / cracks; the weak mean-reversion
+    /// then decays it over months. Uses its own RNG stream so it stays independent of the
+    /// continuous price noise. Returns human-readable messages for the event log.
+    pub fn roll_shocks(&mut self, cfg: &MarketConfig, rng: &mut Rng) -> Vec<String> {
+        let mut msgs = Vec::new();
+        for sh in &cfg.shocks {
+            if !rng.chance(sh.weekly_probability) {
+                continue;
+            }
+            let cm = sh.crude_mult_min + rng.next_f64() * (sh.crude_mult_max - sh.crude_mult_min);
+            let km = sh.crack_mult_min + rng.next_f64() * (sh.crack_mult_max - sh.crack_mult_min);
+            self.crude_price = (self.crude_price * cm).max(20.0);
+            self.gasoline_spread = (self.gasoline_spread * km).max(2.0);
+            self.diesel_spread = (self.diesel_spread * km).max(2.0);
+            self.gasoline_price = self.crude_price + self.gasoline_spread;
+            self.diesel_price = self.crude_price + self.diesel_spread;
+
+            let mut parts = Vec::new();
+            let cpct = (cm - 1.0) * 100.0;
+            let kpct = (km - 1.0) * 100.0;
+            if cpct.abs() > 1.0 {
+                parts.push(format!("crude {cpct:+.0}%"));
+            }
+            if kpct.abs() > 1.0 {
+                parts.push(format!("cracks {kpct:+.0}%"));
+            }
+            msgs.push(format!("{} — {}", sh.name, parts.join(", ")));
+        }
+        msgs
     }
 }

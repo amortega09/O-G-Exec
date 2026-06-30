@@ -4,18 +4,53 @@
   "starting_cash": 50000000,
   "fixed_opex_per_week": 1200000,
   "victory_valuation": 500000000,
-  "valuation_lookback_weeks": 12,
-  "valuation_multiple": 2.4,
+  "valuation_lookback_weeks": 52,
+  "valuation_multiple": 1.4,
   "market": {
     "crude_mean": 65.0,
-    "crude_reversion": 0.12,
-    "crude_volatility": 1.8,
-    "gasoline_spread_mean": 30.0,
-    "diesel_spread_mean": 25.0,
-    "spread_volatility": 1.5,
-    "spread_reversion": 0.15,
-    "gasoline_seasonal_amplitude": 5.0,
-    "demand_volatility": 0.1
+    "crude_reversion": 0.02,
+    "crude_volatility": 2.9,
+    "gasoline_spread_mean": 28.0,
+    "diesel_spread_mean": 24.0,
+    "spread_volatility": 2.5,
+    "spread_reversion": 0.06,
+    "gasoline_seasonal_amplitude": 7.0,
+    "demand_volatility": 0.1,
+    "diesel_seasonal_amplitude": 6.0,
+    "shocks": [
+      {
+        "name": "Supply disruption",
+        "weekly_probability": 0.0038,
+        "crude_mult_min": 1.25,
+        "crude_mult_max": 1.45,
+        "crack_mult_min": 1.0,
+        "crack_mult_max": 1.15
+      },
+      {
+        "name": "Demand collapse",
+        "weekly_probability": 0.0024,
+        "crude_mult_min": 0.55,
+        "crude_mult_max": 0.75,
+        "crack_mult_min": 0.75,
+        "crack_mult_max": 0.95
+      },
+      {
+        "name": "OPEC supply action",
+        "weekly_probability": 0.019,
+        "crude_mult_min": 0.88,
+        "crude_mult_max": 1.12,
+        "crack_mult_min": 1.0,
+        "crack_mult_max": 1.0
+      },
+      {
+        "name": "Refining margin spike",
+        "weekly_probability": 0.0064,
+        "crude_mult_min": 1.0,
+        "crude_mult_max": 1.0,
+        "crack_mult_min": 1.5,
+        "crack_mult_max": 2.2
+      }
+    ]
   },
   "finance": {
     "annual_interest_rate": 0.09,

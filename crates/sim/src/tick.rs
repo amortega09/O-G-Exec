@@ -202,6 +202,15 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
         &mut state.rng.market,
     );
 
+    // Discrete fat-tail shocks (supply/demand/OPEC/refining) on their own RNG stream.
+    for msg in state.market.roll_shocks(&cfg.market, &mut state.rng.events) {
+        week_events.push(GameEvent {
+            week: state.week,
+            message: format!("📰 {msg}"),
+            severity: EventSeverity::Warning,
+        });
+    }
+
     // --- 3. Patch refinery config with current market prices + effective capacities ---
     // Update crude price.
     state.refinery.adu.crude_price = state.market.crude_price;

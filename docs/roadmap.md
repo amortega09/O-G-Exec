@@ -44,8 +44,20 @@ Buy crude assays by price/yield/sulfur; the per-tick decision becomes "which bar
 the real refinery game. LP already supports multiple crudes structurally.
 
 ### Phase E — living market
-Crude suppliers + product buyers + crack spreads that respond to supply/demand
-(including the player's and rivals' output).
+- [x] **Realistic market + shock events** — OU params recalibrated to historical Brent
+  (~£66 mean, £20–134 range, ~40% vol) and crack spreads; discrete fat-tail shocks
+  (supply/demand/OPEC/refining) sized from real events. Full data backing in
+  [market-calibration.md](market-calibration.md). Valuation moved to a 52-week lookback
+  so wins need *sustained* earnings, not a volatility spike.
+- [ ] Crude suppliers + product buyers + spreads that respond to supply/demand
+  (including the player's and rivals' output).
+
+> **Owed: a strategy-depth balance pass.** The realistic market exposed that the player's
+> levers are too weak against market swings — maintenance barely matters (degradation too
+> slow) and capex timing is crude, so outcomes are market-luck-dominated. Make maintenance
+> bite, add rate-cutting (vs binary idle), and reward counter-cyclical investment so skill
+> tilts the odds more than luck. Best done with multi-crude (Phase D), which adds the
+> decisions the market should reward.
 
 ### Phase F — competitors
 Other firms running plants on the same LP engine; their moves perturb the market.
