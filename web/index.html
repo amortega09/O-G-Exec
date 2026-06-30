@@ -80,10 +80,12 @@
           </div>
         </div>
         <div class="control-console">
-          <button id="btn-pause" class="btn btn-control" title="Pause">⏸</button>
-          <button id="btn-play" class="btn btn-control active" title="Play">▶</button>
-          <button id="btn-fast" class="btn btn-control" title="Fast (5×)">⏩</button>
-          <button id="btn-step" class="btn btn-step" title="Single Tick">STEP</button>
+          <button id="btn-step" class="btn btn-step" title="Advance one week" style="flex:1 1 100%;">
+            NEXT WEEK ▶<span id="pending-badge" class="pending-badge hidden"></span>
+          </button>
+          <button id="btn-pause" class="btn btn-control" title="Pause auto-run">⏸</button>
+          <button id="btn-play" class="btn btn-control active" title="Auto-run">▶</button>
+          <button id="btn-fast" class="btn btn-control" title="Auto-run fast (5×)">⏩</button>
         </div>
       </div>
     </aside>
@@ -397,6 +399,24 @@
         <h2 id="game-over-title" class="overlay-title"></h2>
         <p id="game-over-message" class="overlay-message"></p>
         <button id="btn-restart" class="btn btn-primary">Initialise New Campaign</button>
+      </div>
+    </div>
+
+    <!-- Weekly Briefing -->
+    <div id="weekly-briefing" class="overlay hidden">
+      <div class="overlay-content briefing-card" style="max-width:520px; text-align:left;">
+        <div class="briefing-head">
+          <span class="briefing-week mono" id="briefing-week">WEEK 1</span>
+          <span class="briefing-evpct mono" id="briefing-evpct"></span>
+        </div>
+        <div class="briefing-stats" id="briefing-stats"></div>
+        <div class="briefing-events" id="briefing-events"></div>
+        <div class="briefing-actions" style="display:flex; gap:10px; margin-top:16px;">
+          <button id="btn-briefing-close" class="btn btn-secondary" style="flex:0 0 auto;">Review board</button>
+          <button id="btn-briefing-continue" class="btn btn-step" style="flex:1;">
+            Advance to Week <span id="briefing-next">2</span> ▶
+          </button>
+        </div>
       </div>
     </div>
   </div>

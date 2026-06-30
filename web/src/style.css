@@ -1584,3 +1584,11 @@ html, body {
     padding: 10px;
   }
 }
+
+/* ── Weekly briefing + pending orders (deliberate turn loop) ── */
+.briefing-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+.briefing-week { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.05em; }
+.briefing-evpct { color: var(--accent-amber, #ffb300); font-size: 0.85rem; }
+.briefing-events { max-height: 220px; overflow-y: auto; }
+.pending-badge { font-size: 0.72rem; opacity: 0.95; font-weight: 600; }
+.pending-badge.hidden { display: none; }

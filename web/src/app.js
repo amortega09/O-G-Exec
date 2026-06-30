@@ -16,6 +16,7 @@ let tickSpeed = 0;         // 0=paused, 1=1×, 5=5×
 let tickTimer = null;
 let pendingActions = [];
 let lastEventCount = 0;
+let lastWeekEvents = [];    // events that fired in the most recent tick (for the briefing)
 
 // Stats history for trend computation (Bloomberg style)
 let prevStats = {
@@ -112,7 +113,8 @@ function doTick() {
   pendingActions = [];
 
   try {
-    // Record current stats to calculate trends on next render
+    // Record current stats to calculate trends + weekly-briefing deltas
+    const prevEventCount = gameView ? gameView.events.length : 0;
     if (gameView) {
       prevStats.cash = gameView.cash;
       prevStats.valuation = gameView.valuation;
@@ -120,10 +122,12 @@ function doTick() {
     }
 
     gameView = game.tick(actionsJson);
+    lastWeekEvents = gameView.events.slice(prevEventCount); // just this week's
     renderAll(gameView);
 
-    // Reset debt slider to reflect new state
+    // Reset debt slider + pending indicator to reflect the new state
     updateDebtSliderState(gameView);
+    updatePendingBadge();
 
     // Check end condition
     if (gameView.status !== 'Running') {
@@ -154,6 +158,81 @@ function setSpeed(speed) {
   }
 }
 
+// ── Deliberate turn loop ────────────────────────────────────────────────────
+// Advance exactly one week, then surface a briefing of what happened. This is the
+// primary way to play; auto-run (play/fast) is for skipping ahead.
+function manualAdvance() {
+  setSpeed(0);
+  if (!game || !game.is_running()) return;
+  doTick();
+  if (gameView && gameView.status === 'Running') showBriefing(gameView);
+}
+
+// Queue a player action for the next advance instead of acting immediately. Slider
+// settings replace any earlier value of the same kind so the queue stays clean.
+function queueAction(action) {
+  const key = Object.keys(action)[0];
+  if (key === 'SetSeverity' || key === 'SetProductTilt') {
+    pendingActions = pendingActions.filter(a => !(key in a));
+  }
+  pendingActions.push(action);
+  updatePendingBadge();
+}
+
+function updatePendingBadge() {
+  const badge = document.getElementById('pending-badge');
+  if (!badge) return;
+  const n = pendingActions.length;
+  badge.textContent = n ? ` · ${n} order${n > 1 ? 's' : ''}` : '';
+  badge.classList.toggle('hidden', n === 0);
+}
+
+function hideBriefing() {
+  document.getElementById('weekly-briefing').classList.add('hidden');
+}
+
+function showBriefing(view) {
+  const dEv = view.valuation - (prevStats.valuation ?? view.valuation);
+  const dCash = view.cash - (prevStats.cash ?? view.cash);
+  const netCf = view.weekly_margin - view.interest;
+  const pct = Math.min(100, (view.valuation / view.victory_target) * 100);
+  const effPct = (view.execution_efficiency ?? 1) * 100;
+
+  document.getElementById('briefing-week').textContent = `WEEK ${view.week}`;
+  document.getElementById('briefing-evpct').textContent = `${pct.toFixed(0)}% to £500M target`;
+  document.getElementById('briefing-next').textContent = view.week + 1;
+
+  const stat = (label, value, delta, good) => {
+    const arrow = delta == null ? '' : delta > 0 ? '▲' : delta < 0 ? '▼' : '';
+    const dColor = delta == null || Math.abs(delta) < 1 ? 'var(--text-muted,#888)'
+      : (good ? '#00e676' : '#ff5252');
+    const dTxt = delta == null ? '' : ` <span style="color:${dColor}">${arrow} ${formatMoney(Math.abs(delta))}</span>`;
+    return `<div class="briefing-stat" style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <span style="color:var(--text-muted,#999)">${label}</span>
+      <span class="mono">${value}${dTxt}</span></div>`;
+  };
+
+  document.getElementById('briefing-stats').innerHTML =
+    stat('Enterprise Value', formatMoney(view.valuation), dEv, dEv >= 0) +
+    stat('Cash', formatMoney(view.cash), dCash, dCash >= 0) +
+    stat('Net cashflow', formatMoney(netCf), null) +
+    stat('Operating EBITDA', formatMoney(view.weekly_margin), null) +
+    `<div class="briefing-stat" style="display:flex;justify-content:space-between;padding:6px 0;">
+      <span style="color:var(--text-muted,#999)">Execution vs plan</span>
+      <span class="mono" style="color:${effPct >= 97 ? '#00e676' : effPct >= 92 ? '#ffb300' : '#ff5252'}">${effPct.toFixed(0)}%</span></div>`;
+
+  const evHtml = lastWeekEvents.length
+    ? lastWeekEvents.map(e => {
+        const c = e.severity === 'Critical' ? '#ff5252' : e.severity === 'Warning' ? '#ffb300' : 'var(--accent-cyan,#00e5ff)';
+        return `<div style="padding:6px 8px;margin-top:6px;border-left:3px solid ${c};background:rgba(255,255,255,0.03);font-size:0.85rem;">${e.message}</div>`;
+      }).join('')
+    : `<div style="padding:8px;color:var(--text-muted,#888);font-size:0.85rem;">A quiet week — operations nominal.</div>`;
+  document.getElementById('briefing-events').innerHTML =
+    `<div style="margin-top:14px;font-size:0.7rem;letter-spacing:0.1em;color:var(--text-muted,#888)">THIS WEEK</div>${evHtml}`;
+
+  document.getElementById('weekly-briefing').classList.remove('hidden');
+}
+
 // ── Controls & Actions ──────────────────────────────────────────────────────
 function setupControls() {
   // Speed buttons
@@ -161,10 +240,14 @@ function setupControls() {
   document.getElementById('btn-play').addEventListener('click', () => setSpeed(1));
   document.getElementById('btn-fast').addEventListener('click', () => setSpeed(5));
   
-  document.getElementById('btn-step').addEventListener('click', () => {
-    setSpeed(0);
-    doTick();
+  document.getElementById('btn-step').addEventListener('click', manualAdvance);
+
+  // Weekly briefing: Continue advances the next week; Review just closes it.
+  document.getElementById('btn-briefing-continue').addEventListener('click', () => {
+    hideBriefing();
+    manualAdvance();
   });
+  document.getElementById('btn-briefing-close').addEventListener('click', hideBriefing);
 
   // Severity controls (+/- adjust)
   const sevSlider = document.getElementById('slider-severity');
@@ -174,7 +257,7 @@ function setupControls() {
     val = Math.max(0.0, Math.min(1.0, val));
     sevSlider.value = Math.round(val * 100);
     sevVal.textContent = val.toFixed(2);
-    pendingActions.push({ SetSeverity: val });
+    queueAction({ SetSeverity: val });
   };
 
   sevSlider.addEventListener('input', () => {
@@ -204,7 +287,7 @@ function setupControls() {
     } else {
       tiltVal.textContent = `Diesel (${val.toFixed(2)})`;
     }
-    pendingActions.push({ SetProductTilt: val });
+    queueAction({ SetProductTilt: val });
   };
 
   tiltSlider.addEventListener('input', () => {
@@ -230,18 +313,18 @@ function setupControls() {
     const diff = targetDebt - gameView.debt;
     
     if (diff > 1000) {
-      pendingActions.push({ Borrow: Math.round(diff) });
+      queueAction({ Borrow: Math.round(diff) });
     } else if (diff < -1000) {
-      pendingActions.push({ Repay: Math.round(-diff) });
+      queueAction({ Repay: Math.round(-diff) });
     }
   });
 
   // Quick Debt Buttons
   document.getElementById('btn-borrow-quick').addEventListener('click', () => {
-    pendingActions.push({ Borrow: 20_000_000 });
+    queueAction({ Borrow: 20_000_000 });
   });
   document.getElementById('btn-repay-quick').addEventListener('click', () => {
-    pendingActions.push({ Repay: 20_000_000 });
+    queueAction({ Repay: 20_000_000 });
   });
 
   // Restartcampaign
@@ -849,14 +932,13 @@ function showGameOver(status) {
 }
 
 // ── Global Actions (Exposed to dynamic click bindings) ─────────────────────
+// Actions queue for the next advance — they do not burn a week on their own.
 window.scheduleTurnaround = (unitName) => {
-  pendingActions.push({ ScheduleTurnaround: unitName });
-  doTick(); // Quick tick to provide immediate visual feedback of turnaround schedule
+  queueAction({ ScheduleTurnaround: unitName });
 };
 
 window.approveProject = (configIndex) => {
-  pendingActions.push({ ApproveProject: configIndex });
-  doTick(); // Quick tick to immediately reflect construction budget deduction
+  queueAction({ ApproveProject: configIndex });
 };
 
 // ── Sidebar pin / collapse handler ──────────────────────────────────────────
