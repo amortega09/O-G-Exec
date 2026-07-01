@@ -145,6 +145,8 @@ pub struct GameView {
     /// Crude grades the LP chose to run this week: (grade, bbl/day) + (grade, £/bbl).
     pub crude_mix: Vec<(String, f64)>,
     pub crude_prices: Vec<(String, f64)>,
+    /// Real bbl/day produced of every stream — the schematic's actual pipe flows.
+    pub stream_production: Vec<(String, f64)>,
     pub revenue: f64,
     pub crude_cost: f64,
     pub variable_opex: f64,
@@ -381,6 +383,7 @@ impl GameState {
                 .iter()
                 .map(|c| (c.name.clone(), c.price))
                 .collect(),
+            stream_production: solve.map(|s| s.stream_production.clone()).unwrap_or_default(),
             revenue,
             crude_cost,
             variable_opex: var_opex,

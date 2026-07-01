@@ -52,6 +52,9 @@ pub struct SolveResult {
     pub finances: Finances,
     pub crude_charge: f64,
     pub crude_mix: Vec<(String, f64)>, // (grade name, bbl/day charged)
+    /// bbl/day of every stream actually produced this solve — the real pipe flows, so
+    /// the UI never has to re-derive yields.
+    pub stream_production: Vec<(String, f64)>,
     pub adu: UnitResult,
     pub conversions: Vec<UnitResult>,
     pub products: Vec<ProductResult>,
@@ -246,10 +249,14 @@ fn solve_with(
     let mut crude_charge = 0.0;
     let mut crude_cost = 0.0;
     let mut crude_mix = Vec::new();
+    let mut production = vec![0.0f64; r.streams.len()]; // real bbl/day produced per stream
     for (ci, cr) in r.crudes.iter().enumerate() {
         let v = sol.var_value(vars[crude_vars[ci]]);
         crude_charge += v;
         crude_cost += v * cr.price;
+        for &(s, yld) in &cr.yields {
+            production[s] += yld * v;
+        }
         if v > 1e-6 {
             crude_mix.push((cr.name.clone(), v));
         }
@@ -273,6 +280,9 @@ fn solve_with(
             feed += v;
             sev_acc += m.severity * v;
             var_opex += m.opex * v;
+            for &(s, yld) in &m.yields {
+                production[s] += yld * v;
+            }
             per_mode.push((name.clone(), v));
         }
         conversions.push(UnitResult {
@@ -324,11 +334,19 @@ fn solve_with(
         "finances breakdown does not reconcile with LP objective"
     );
 
+    let stream_production = r
+        .streams
+        .iter()
+        .zip(&production)
+        .map(|(st, &p)| (st.name.clone(), p))
+        .collect();
+
     SolveResult {
         margin: finances.margin(),
         finances,
         crude_charge,
         crude_mix,
+        stream_production,
         adu,
         conversions,
         products,
@@ -359,6 +377,11 @@ impl SolveResult {
             },
             crude_charge: self.crude_charge * f,
             crude_mix: self.crude_mix.iter().map(|(n, v)| (n.clone(), v * f)).collect(),
+            stream_production: self
+                .stream_production
+                .iter()
+                .map(|(n, v)| (n.clone(), v * f))
+                .collect(),
             adu: scale_unit(&self.adu),
             conversions: self.conversions.iter().map(scale_unit).collect(),
             products: self

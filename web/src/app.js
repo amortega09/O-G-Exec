@@ -414,82 +414,46 @@ function renderTrendElement(id, current, prev, inverse = false) {
 
 // ── Render SVG Schematic (The Tactical Board) ──────────────────────────────
 function renderSchematic(view) {
-  // 1. Update Crude Supply Nodes
   document.getElementById('schematic-crude-price').textContent = `£${view.market.crude_price.toFixed(2)}`;
 
-  // 2. Extract Volumes
-  const gasoline = view.products.find(p => p.name === 'gasoline');
-  const diesel = view.products.find(p => p.name === 'diesel');
-  const gasolVol = gasoline ? gasoline.volume : 0;
-  const dieselVol = diesel ? diesel.volume : 0;
+  // Real solved flows straight from the LP — no hardcoded yields.
+  const flow = new Map((view.stream_production || []).map(([n, v]) => [n, v]));
+  const prod = (n) => flow.get(n) || 0;
 
+  const gasolVol = view.products.find(p => p.name === 'gasoline')?.volume || 0;
+  const dieselVol = view.products.find(p => p.name === 'diesel')?.volume || 0;
   document.getElementById('schematic-gasoline-val').textContent = `${formatNum(gasolVol)} bbl/d`;
   document.getElementById('schematic-diesel-val').textContent = `${formatNum(dieselVol)} bbl/d`;
 
-  // 3. Extract Dispositions / Byproducts
-  // Find crude outputs to estimate byproduct volume
-  // In our model, LPG and Residue yields are mapped to streams
-  // Let's grab total LPG and Residue volumes sold in P&L
-  // LPG is idx 5, Residue is idx 2, Coke is idx 6 (slop)
-  // Let's look up byproducts via product view blends or view sales
-  // Wait, we can estimate byproduct volumes using stream idx values
-  // Let's search view.revenue/crude_charge or products details.
-  // Actually, we can get LPG, Residue, Coke rates directly from P&L sales list!
-  // In solve.rs: `sales` contains tuples of (stream_name, bbl_day volume)
-  // But wait, does GameView expose sales?
-  // Let's check state.rs: GameView has `weekly_margin`, `crude_charge`, etc., but does it expose sales?
-  // No, but we can compute or read them!
-  // Wait, in state.rs, LPG and Residue are dispositions. Let's lookup them in products.
-  // If not explicitly exposed as a direct field, we can fallback to displaying crude fractions!
-  // Let's check what variables are exposed inside `app.js` before our rewrite:
-  // In old app.js: LPG, Residue, Coke were not explicitly drawn, we added them in index.html.
-  // Let's check how we can estimate them:
-  // ADU capacity is 100K bbl/d. Yield splits: Naphtha (25%), Gasoil (45%), Residue (30%).
-  // So Residue volume = ADU throughput * 0.3.
-  // FCC capacity is 50K. High/low severity yields split LPG, Coke, fcc_gaso, LCO.
-  // We can calculate estimates of LPG, Residue, Coke based on the unit throughputs!
-  // ADU unit: view.units[0].
-  // FCC unit: view.units[1].
-  const adu = view.units.find(u => u.name === 'ADU') || view.units[0];
-  const fcc = view.units.find(u => u.name === 'FCC') || view.units[1];
-  
-  const aduThroughput = adu ? adu.throughput : 0;
+  const fcc = view.units.find(u => u.name === 'FCC');
+  const aduThroughput = view.crude_charge || 0;
   const fccThroughput = fcc ? fcc.throughput : 0;
-  
-  const residueEst = aduThroughput * 0.30;
-  // FCC LPG yield: Low severity = 6%, High severity = 10%. Average = 8%.
-  const fccSev = fcc && fcc.realised_severity != null ? fcc.realised_severity : 0.5;
-  const lpgYield = 0.06 + (fccSev * 0.04);
-  const lpgEst = fccThroughput * lpgYield;
-  // FCC Coke yield: Low = 5%, High = 8%.
-  const cokeYield = 0.05 + (fccSev * 0.03);
-  const cokeEst = fccThroughput * cokeYield;
+  const gasoilTotal = prod('gasoil') + prod('gasoil_hs');
 
-  document.getElementById('schematic-lpg-val').textContent = `LPG: ${formatNum(lpgEst)} bbl/d`;
-  document.getElementById('schematic-residue-val').textContent = `Residue: ${formatNum(residueEst)} bbl/d`;
-  document.getElementById('schematic-coke-val').textContent = `Coke: ${formatNum(cokeEst)} bbl/d`;
+  const residue = prod('residue');
+  const lpg = prod('lpg');
+  const coke = prod('coke');
+  document.getElementById('schematic-lpg-val').textContent = `LPG: ${formatNum(lpg)} bbl/d`;
+  document.getElementById('schematic-residue-val').textContent = `Residue: ${formatNum(residue)} bbl/d`;
+  document.getElementById('schematic-coke-val').textContent = `Coke: ${formatNum(coke)} bbl/d`;
 
   if (fcc) {
     const fccUtil = fcc.capacity > 0 ? (fcc.throughput / fcc.capacity * 100) : 0;
     document.getElementById('schematic-fcc-util').textContent = `${fccUtil.toFixed(0)}% Util`;
   }
 
-  // 4. Update Node Status Classes (Bottleneck, Turnaround, Tripped)
   updateSchematicNodeClass('node-adu', 'ADU', view);
   updateSchematicNodeClass('node-fcc', 'FCC', view);
 
-  // 5. Update flow speed animations
+  // Flow-speed animations keyed to actual throughput.
   setPipeFlowSpeed('flow-crude', aduThroughput, 100000);
-  setPipeFlowSpeed('flow-naphtha', aduThroughput * 0.25, 25000);
-  setPipeFlowSpeed('flow-gasoil-to-diesel', aduThroughput * 0.45 - fccThroughput, 45000);
+  setPipeFlowSpeed('flow-naphtha', prod('naphtha'), 30000);
+  setPipeFlowSpeed('flow-gasoil-to-diesel', Math.max(0, gasoilTotal - fccThroughput), 45000);
   setPipeFlowSpeed('flow-gasoil-to-fcc', fccThroughput, 50000);
-  setPipeFlowSpeed('flow-residue', residueEst, 30000);
-
-  const fccGasoVol = fccThroughput * (0.50 + fccSev * 0.08);
-  const lcoVol = fccThroughput * (0.30 - fccSev * 0.12);
-  setPipeFlowSpeed('flow-fcc-gaso', fccGasoVol, 29000);
-  setPipeFlowSpeed('flow-lco', lcoVol, 15000);
-  setPipeFlowSpeed('flow-fcc-byproducts', lpgEst + cokeEst, 9000);
+  setPipeFlowSpeed('flow-residue', residue, 45000);
+  setPipeFlowSpeed('flow-fcc-gaso', prod('fcc_gaso'), 29000);
+  setPipeFlowSpeed('flow-lco', prod('lco'), 15000);
+  setPipeFlowSpeed('flow-fcc-byproducts', lpg + coke, 9000);
 }
 
 function updateSchematicNodeClass(svgId, unitName, view) {
@@ -717,7 +681,8 @@ function renderUnits(view) {
   const container = document.getElementById('units-content');
   if (!container) return;
 
-  container.innerHTML = view.units.map(u => {
+  // Hide units that aren't built yet (capacity 0 — e.g. the hydrocracker pre-project).
+  container.innerHTML = view.units.filter(u => u.capacity > 0).map(u => {
     const utilPct = Math.round(u.utilisation * 100);
     const healthPct = Math.round(u.health * 100);
     
