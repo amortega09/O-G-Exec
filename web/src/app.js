@@ -353,6 +353,7 @@ function renderAll(view) {
   renderUnits(view);
   renderMaintenance(view);
   renderProjects(view);
+  renderFinance(view);
   renderEvents(view);
   renderChart(view);
 }
