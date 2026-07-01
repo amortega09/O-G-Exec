@@ -83,6 +83,19 @@
       "base_outage_hazard": 0.0015,
       "max_outage_hazard": 0.5,
       "hazard_exponent": 3.0
+    },
+    {
+      "unit_name": "Hydrocracker",
+      "degradation_per_kbbl": 6e-06,
+      "high_severity_degradation_mult": 1.0,
+      "trip_threshold": 0.15,
+      "base_outage_hazard": 0.0015,
+      "max_outage_hazard": 0.5,
+      "hazard_exponent": 3.0,
+      "turnaround_weeks": 3,
+      "turnaround_cost": 5000000,
+      "trip_outage_weeks": 5,
+      "trip_outage_cost": 12000000
     }
   ],
   "projects": [
@@ -112,6 +125,15 @@
       "cost": 12000000,
       "duration_weeks": 12,
       "available_after_week": 4
+    },
+    {
+      "name": "Build Hydrocracker",
+      "unit_name": "Hydrocracker",
+      "capacity_gain": 12000,
+      "cost": 80000000,
+      "duration_weeks": 40,
+      "available_after_week": 26,
+      "description": "Install a hydrocracker to upgrade low-value residue into high-cetane diesel, unlocking cheap heavy crude."
     }
   ],
   "execution": {

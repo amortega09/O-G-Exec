@@ -44,10 +44,15 @@ The architectural pivot from deterministic calculator to FM-style simulation.
   `Crude`); the ADU blends across grades and the LP picks the mix. Each grade is priced
   off the benchmark + a grade differential each tick. Two grades shipped (Brent Light,
   Urals Heavy); `crude_mix`/`crude_prices` surfaced in the UI market panel.
-- [ ] **The real tradeoff needs increment 2:** crude *sulfur → product spec* coupling
-  and/or a residue-upgrading unit (coker/hydrocracker). Without them the LP just runs the
-  cheaper grade (heavy wins ~72%); with them, grade choice becomes a genuine, market- and
-  capex-dependent decision (the "heavy-light spread" bet from the design doc).
+- [x] **Hydrocracker capital project** — a dormant Hydrocracker unit (capacity 0) that
+  the "Build Hydrocracker" project (£80M, 40 wk) switches on. It upgrades low-value
+  residue into high-cetane diesel, lifting margin ~£2.4M/wk (~33-wk payback) and flipping
+  crude selection to ~96% heavy. This is the design doc's "£80M bet on the heavy-light
+  spread": committing capital + debt over a long build, on an ROI that rides future
+  diesel cracks. Turns the crude/capex question into a genuine decision.
+- [ ] **Still owed for full depth:** crude *sulfur → product-spec* coupling (needs
+  crude-specific streams; watch the FCC-laundering loophole) so sour crude has a
+  processing downside even before upgrading.
 - [ ] Explicit procurement (approve slate / buy cargoes with lead time) + a moving
   heavy-light differential.
 

@@ -57,6 +57,16 @@
       ]
     },
     {
+      "name": "hc_distillate",
+      "sale_price": 0.0,
+      "quality": [
+        0.0,
+        0.0,
+        55.0,
+        0.05
+      ]
+    },
+    {
       "name": "lpg",
       "sale_price": 60.0,
       "quality": [
@@ -142,11 +152,11 @@
               0.3
             ],
             [
-              5,
+              6,
               0.06
             ],
             [
-              6,
+              7,
               0.05
             ]
           ]
@@ -165,8 +175,34 @@
               0.18
             ],
             [
-              5,
+              6,
               0.1
+            ],
+            [
+              7,
+              0.08
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Hydrocracker",
+      "feed_stream": 2,
+      "capacity": 0.0,
+      "modes": [
+        {
+          "name": "base",
+          "severity": 0.7,
+          "opex": 15.0,
+          "yields": [
+            [
+              5,
+              0.8
+            ],
+            [
+              0,
+              0.15
             ],
             [
               6,
@@ -207,7 +243,8 @@
       "contract": 0.0,
       "allowed": [
         1,
-        4
+        4,
+        5
       ],
       "specs": [
         {

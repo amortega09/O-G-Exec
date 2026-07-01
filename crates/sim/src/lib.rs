@@ -40,7 +40,7 @@ mod tests {
         assert_eq!(state.week, 0);
         assert_eq!(state.cash, cfg.starting_cash);
         assert_eq!(state.status, GameStatus::Running);
-        assert_eq!(state.units.len(), 2); // ADU + FCC
+        assert_eq!(state.units.len(), 3); // ADU + FCC + Hydrocracker
     }
 
     #[test]

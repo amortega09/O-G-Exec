@@ -25,6 +25,7 @@ pub fn phase0_refinery() -> Refinery {
         Stream { name: "residue".into(),  sale_price: 50.0, quality: vec![ 0.0,  0.0,  0.0, 2.50] }, // fuel oil (discount to crude)
         Stream { name: "fcc_gaso".into(), sale_price: 0.0,  quality: vec![92.0,  8.0,  0.0, 0.10] },
         Stream { name: "lco".into(),      sale_price: 0.0,  quality: vec![ 0.0,  0.0, 45.0, 0.30] },
+        Stream { name: "hc_distillate".into(), sale_price: 0.0, quality: vec![0.0, 0.0, 55.0, 0.05] }, // hydrocracker diesel, high cetane / low sulfur
         Stream { name: "lpg".into(),      sale_price: 60.0, quality: vec![ 0.0,  0.0,  0.0, 0.00] },
         Stream { name: "coke".into(),     sale_price: 0.0,  quality: vec![ 0.0,  0.0,  0.0, 0.00] }, // burned/slop
     ];
@@ -92,6 +93,26 @@ pub fn phase0_refinery() -> Refinery {
         ],
     };
 
+    // Hydrocracker: dormant until a capital project builds it (capacity 0). It upgrades
+    // low-value residue into high-cetane, low-sulfur diesel (with volume gain from H2),
+    // which is what makes cheap residue-heavy crude worth running — the "£80M bet on the
+    // heavy-light spread" from the design doc.
+    let hydrocracker = ConvUnit {
+        name: "Hydrocracker".into(),
+        feed_stream: idx("residue"),
+        capacity: 0.0, // built via the "Build Hydrocracker" capital project
+        modes: vec![Mode {
+            name: "base".into(),
+            severity: 0.70,
+            opex: 15.0, // hydrogen + high pressure is genuinely opex-heavy
+            yields: vec![
+                (idx("hc_distillate"), 0.80),
+                (idx("naphtha"), 0.15),
+                (idx("lpg"), 0.08),
+            ],
+        }],
+    };
+
     let products = vec![
         Product {
             name: "gasoline".into(),
@@ -109,7 +130,7 @@ pub fn phase0_refinery() -> Refinery {
             price: 90.0,
             demand: 60_000.0,
             contract: 0.0,
-            allowed: vec![idx("gasoil"), idx("lco")],
+            allowed: vec![idx("gasoil"), idx("lco"), idx("hc_distillate")],
             specs: vec![
                 Spec { property: 2, kind: SpecKind::Min, limit: 48.0 }, // cetane
                 Spec { property: 3, kind: SpecKind::Max, limit: 0.5 },  // sulfur
@@ -117,7 +138,14 @@ pub fn phase0_refinery() -> Refinery {
         },
     ];
 
-    Refinery { properties, streams, crudes, adu, conversions: vec![fcc], products }
+    Refinery {
+        properties,
+        streams,
+        crudes,
+        adu,
+        conversions: vec![fcc, hydrocracker],
+        products,
+    }
 }
 
 #[cfg(test)]
