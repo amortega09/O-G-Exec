@@ -118,20 +118,28 @@ fn solve_with(
         crude_vars.push(id);
     }
 
-    // --- Conversion mode variables ------------------------------------------
-    // unit index -> Vec<(mode name, var-id)>
+    // --- Conversion units: feed-routing + mode variables --------------------
+    // Feed routing is decoupled from processing so a unit can eat any mix of its feed
+    // streams. `feed[s]` draws stream s into the unit; a per-unit balance forces total
+    // feed in == total processed. Mode vars produce yields per bbl processed.
     let mut conv_vars: Vec<Vec<(String, usize)>> = Vec::new();
+    let mut conv_feed_vars: Vec<Vec<usize>> = Vec::new();
     for unit in &r.conversions {
+        let mut feed_ids = Vec::new();
+        for &fs in &unit.feed_streams {
+            let fid = add_var(&mut p, &mut vars, 0.0); // opex is on processing, not routing
+            *bal[fs].entry(fid).or_insert(0.0) -= 1.0; // consumes feed stream fs
+            feed_ids.push(fid);
+        }
         let mut modes = Vec::new();
         for m in &unit.modes {
             let id = add_var(&mut p, &mut vars, -m.opex);
-            // consumes one bbl of feed per bbl processed
-            *bal[unit.feed_stream].entry(id).or_insert(0.0) -= 1.0;
             for &(s, yld) in &m.yields {
                 *bal[s].entry(id).or_insert(0.0) += yld;
             }
             modes.push((m.name.clone(), id));
         }
+        conv_feed_vars.push(feed_ids);
         conv_vars.push(modes);
     }
 
@@ -172,7 +180,7 @@ fn solve_with(
     }
     p.add_constraint(build_expr(&adu_terms, &vars), ComparisonOp::Le, adu_cap);
 
-    // Conversion-unit capacity: sum of mode feeds <= cap.
+    // Conversion-unit capacity: total processed <= cap.
     for (ui, unit) in r.conversions.iter().enumerate() {
         let mut terms = BTreeMap::new();
         for &(_, id) in &conv_vars[ui] {
@@ -180,6 +188,18 @@ fn solve_with(
         }
         let cap = cap_override(&unit.name).unwrap_or(unit.capacity);
         p.add_constraint(build_expr(&terms, &vars), ComparisonOp::Le, cap);
+    }
+
+    // Feed balance per unit: total feed routed in == total processed.
+    for ui in 0..r.conversions.len() {
+        let mut terms = BTreeMap::new();
+        for &fid in &conv_feed_vars[ui] {
+            *terms.entry(fid).or_insert(0.0) += 1.0;
+        }
+        for &(_, id) in &conv_vars[ui] {
+            *terms.entry(id).or_insert(0.0) -= 1.0;
+        }
+        p.add_constraint(build_expr(&terms, &vars), ComparisonOp::Eq, 0.0);
     }
 
     // Severity floor (the severity dial): feed-weighted avg severity >= min_severity.

@@ -50,9 +50,13 @@ The architectural pivot from deterministic calculator to FM-style simulation.
   crude selection to ~96% heavy. This is the design doc's "£80M bet on the heavy-light
   spread": committing capital + debt over a long build, on an ROI that rides future
   diesel cracks. Turns the crude/capex question into a genuine decision.
-- [ ] **Still owed for full depth:** crude *sulfur → product-spec* coupling (needs
-  crude-specific streams; watch the FCC-laundering loophole) so sour crude has a
-  processing downside even before upgrading.
+- [x] **Sulfur → spec coupling** — conversion units now accept multiple feed streams
+  (feed routing decoupled from processing in the LP), so light crude yields low-sulfur
+  gasoil and heavy yields high-sulfur `gasoil_hs`. The diesel sulfur spec limits how much
+  sour gas oil reaches diesel, so on a simple plant heavy crude is diesel-starved (near
+  uneconomic pure); the hydrocracker's low-sulfur `hc_distillate` is the diluent that
+  unlocks it — the real "why complex refineries run cheap sour crude." Light is the safe
+  default; heavy is a co-processed blend that the hydrocracker turns into the winning play.
 - [ ] Explicit procurement (approve slate / buy cargoes with lead time) + a moving
   heavy-light differential.
 

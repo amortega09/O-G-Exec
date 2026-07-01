@@ -54,12 +54,13 @@ pub struct Mode {
     pub yields: Vec<(usize, f64)>,
 }
 
-/// A conversion unit (FCC, hydrocracker, …): consumes one feed stream, runs in one or
-/// more parallel modes the LP blends feed across.
+/// A conversion unit (FCC, hydrocracker, …): consumes any mix of its feed streams (the
+/// LP routes feed in), runs in one or more parallel modes it blends throughput across.
+/// Multiple feed streams let e.g. the FCC eat both low- and high-sulfur gas oils.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConvUnit {
     pub name: String,
-    pub feed_stream: usize,
+    pub feed_streams: Vec<usize>,
     pub capacity: f64, // bbl/day of feed
     pub modes: Vec<Mode>,
 }
