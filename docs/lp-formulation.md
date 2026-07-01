@@ -1,7 +1,12 @@
 # Refinery LP — Single-Period Formulation
 
 The engine room. One LP, re-solved each tick. This document is the spec the Phase 0
-spike must implement and the contract the rest of the sim consumes.
+spike implemented and the contract the rest of the sim consumes.
+
+> **§0–§11 describe the original Phase 0 single-crude model.** The structure (flow-network
+> LP, severity as discrete modes, fixed-quality streams, linear blend specs, objective)
+> is unchanged and still correct. The *instance* has since grown — see **§12** for what's
+> different now. Code (`crates/refinery-lp/src/`) is the source of truth for specifics.
 
 ## 0. Modelling stance
 
@@ -192,3 +197,31 @@ ADU binding (100%) and FCC slack (56%).
   change when HiGHS becomes worthwhile); multi-crude; fuel-system energy balance;
   the maintenance shadow-cost term that lets the LP "feel" future degradation.
 ```
+
+## 12. Model evolution since Phase 0 (current state)
+
+The formulation above is intact; the instance now has more of everything. What changed:
+
+- **Multi-crude (Phase D).** Crudes are first-class assays (`model::Crude`: name, price,
+  differential, yields). The single ADU-charge variable became **one charge variable per
+  grade**; ADU capacity bounds their sum; the objective costs each grade at its own price;
+  `Finances.crude_cost` and `crude_mix` sum per grade. The sim prices each grade =
+  benchmark + differential each tick.
+- **Multi-feed conversion units (sulfur coupling).** `ConvUnit.feed_stream: usize` became
+  `feed_streams: Vec<usize>`, and **feed routing is decoupled from processing**: per unit,
+  `feed[s]` vars draw each allowed stream and a feed-balance constraint forces
+  `Σ feed == Σ processed`. This lets the FCC eat both low- and high-sulfur gas oils. Gas
+  oil is split by crude (`gasoil` 0.6 S from light, `gasoil_hs` 1.3 S from heavy); the
+  diesel sulfur spec then strands sour gas oil until a hydrocracker provides low-sulfur
+  diluent.
+- **Hydrocracker.** A conversion unit dormant at capacity 0, switched on by a capital
+  project; feeds residue → high-cetane low-sulfur `hc_distillate`. The "£80M bet."
+- **Execution noise.** `SolveResult::scaled(f)` shrinks the whole solve (flows +
+  `Finances`) by a per-tick efficiency factor so realized ≠ plan while the P&L still
+  reconciles (§ engine linearity).
+- **New outputs.** `SolveResult` now also returns `crude_mix` and `stream_production`
+  (real bbl/day of every stream) so the sim/UI never re-derive yields; capacity shadow
+  prices feed TEA (NPV/IRR/payback in `sim::tea`).
+
+Still unbuilt: explicit crude procurement (cargoes/lead time), a moving heavy-light
+differential, fuel-system energy balance, and the maintenance shadow-cost term.

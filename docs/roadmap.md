@@ -17,11 +17,18 @@ LP technical spec lives in [lp-formulation.md](lp-formulation.md).
   enterprise value (the win metric), equity shown separately.
 
 The core loop is a real game: do-nothing fails, maintenance sustains, borrow-to-build
-wins faster. Honest economics, deterministic per seed. Tests: refinery-lp 5, sim 11.
+wins faster. Honest economics, deterministic per seed. Tests: refinery-lp 6, sim 16.
+
+Also shipped since: **TEA** (NPV/IRR/payback per project on a forecast deck,
+[tea.rs](../crates/sim/src/tea.rs) — surfaced on project cards; correctly flags
+value-destroying projects); a **deliberate turn loop** in the web UI (Next Week → weekly
+briefing; player actions queue rather than auto-advancing time); and a **UI catch-up** so
+the schematic/P&L/panels mirror the engine (real flows, hydrocracker, crude grade,
+byproduct split, finance panel).
 
 ## Next — building the world (per vision §Build priority)
 
-### Phase C — event-driven stochastic spine  ← IN PROGRESS
+### Phase C — event-driven stochastic spine  ← stochastic mechanics done
 The architectural pivot from deterministic calculator to FM-style simulation.
 - [x] **Split seeded RNG** ([rng.rs](../crates/sim/src/rng.rs)) — one master seed,
   independent streams per subsystem (market, reliability, execution, events).
@@ -36,10 +43,10 @@ The architectural pivot from deterministic calculator to FM-style simulation.
 - [ ] **Typed event queue** alongside the tick pipeline: physics emits events; entities
   react and emit more; some surface as player choices. *Defer until there are entities
   (people/competitors) that need to react — don't build the bus before there's traffic.*
-- [ ] Enabler: expose the LP's **real solved flows** through `GameView` (the schematic
-  currently re-derives them in JS — see [app.js](../web/src/app.js) `renderSchematic`).
+- [x] Enabler: expose the LP's **real solved flows** through `GameView`
+  (`stream_production`) — the schematic reads them directly, no JS-side yield derivation.
 
-### Phase D — multi-crude procurement  ← IN PROGRESS
+### Phase D — multi-crude procurement  ← core done (LP + hydrocracker + sulfur)
 - [x] **Multi-crude LP** — crudes are first-class assays ([model.rs](../crates/refinery-lp/src/model.rs)
   `Crude`); the ADU blends across grades and the LP picks the mix. Each grade is priced
   off the benchmark + a grade differential each tick. Two grades shipped (Brent Light,
@@ -86,8 +93,9 @@ Buy and sell refineries; the LP values targets; due diligence = running their LP
 Staff with attributes (incl. **planning capability** = LP solve quality, per vision),
 hire/fire/morale; a Board that reacts to performance and controls your mandate.
 
-TEA (NPV/IRR/payback) threads through D–H as the decision-support that makes each bet
-legible.
+TEA (NPV/IRR/payback) is **built** ([tea.rs](../crates/sim/src/tea.rs)) and threads through
+D–H as the decision-support that makes each bet legible; extend it to value each new
+decision (competitor plants, M&A targets) as those land.
 
 ## The reusable primitive (D onward)
 

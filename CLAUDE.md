@@ -14,19 +14,23 @@ Key framing: **the LP is the world's economic truth engine, not the game.** The 
 lives in the commercial/corporate layers (3–5); operations are an optional depth dial.
 Build the world that uses the LP — don't keep deepening the LP.
 
-## Status
-- **Phase 0** done: single-period refinery LP, solves in ~165µs, WASM-confirmed.
-- **Phase 1** done: workspace restructure, serde on all model types, JSON scenario config.
-- **Phase 2** done: game simulation engine — time, cash, markets, degradation, capital projects.
-- **Phase 3** done: WASM bridge via wasm-bindgen.
-- **Phase 4** done: browser dashboard UI (Vite + vanilla JS).
-- **Phase A** done: truthful P&L (LP `Finances` breakdown reconciles to cash); sliders
-  wired into the LP; win gated on full lookback; data deduplicated (see below).
-- **Phase B** done: debt financing — borrow/repay, weekly interest, insolvency floor;
-  valuation is **enterprise value** (EBITDA × multiple, the win metric), equity = EV +
-  cash − debt shown separately. Leverage funds capex and accelerates the win.
-- **Next**: Phase C — event-driven stochastic spine (event queue, split RNG, stochastic
-  outage hazard, execution noise). Full sequence in [docs/roadmap.md](docs/roadmap.md).
+## Status (see [docs/roadmap.md](docs/roadmap.md) for detail)
+Playable single-plant game, engine + UI in sync. Done:
+- **Phases 0–4**: LP core, workspace/serde/JSON, sim engine, wasm bridge, command-center UI.
+- **A/B**: truthful reconciling P&L; sliders wired into LP; debt financing; valuation =
+  enterprise value (win metric), equity shown separately.
+- **C (stochastic spine)**: split seeded RNG streams, stochastic outage *hazard* (not a
+  threshold), execution noise (realized = LP plan × efficiency factor). *Event queue
+  deferred until entities need it.*
+- **D (multi-crude)**: crudes are first-class assays; ADU blends grades; **hydrocracker**
+  capital project upgrades residue; **sulfur→spec coupling** (multi-feed conversion units)
+  makes sour crude need upgrading. Light = default, heavy = hydrocracker-enabled play.
+- **TEA**: NPV/IRR/payback per project on a forecast deck ([tea.rs](crates/sim/src/tea.rs)).
+- **Market realism**: OU calibrated to historical Brent + fat-tail shocks
+  ([docs/market-calibration.md](docs/market-calibration.md)).
+- **UX**: deliberate turn loop (Next Week → weekly briefing; actions queue).
+- **Next**: strategy-depth balance pass (make maintenance/severity bite vs the realistic
+  market), then competitors / people+board. Tests: refinery-lp 6, sim 16.
 
 ## Project Structure
 
@@ -70,3 +74,10 @@ cd web && npm install && npm run dev
 - `cargo test` must keep producing sane economics; specs must bind.
 - All game-balance tunables live in `data/scenarios/*.json`.
 - The sim crate's public API is `new_game()`, `tick()`, and `GameView`.
+- **After any LP model change, regenerate `data/refinery.json` from `phase0_refinery()`**
+  (a throwaway example that prints `serde_json::to_string_pretty`) — it uses numeric
+  stream indices that must stay in sync with the code.
+- **`cargo build --target wasm32` only compile-checks — it does NOT refresh `web/pkg`.**
+  Run `wasm-pack build` (or `make wasm`) after engine changes or the browser runs stale code.
+- Never fabricate a number in the UI — expose it from the LP/sim and read it (the P&L and
+  schematic both had fabrication bugs; don't reintroduce them).
