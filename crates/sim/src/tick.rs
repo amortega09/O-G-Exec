@@ -212,8 +212,10 @@ pub fn tick(state: &mut GameState, actions: &[PlayerAction], cfg: &GameConfig) -
     }
 
     // --- 3. Patch refinery config with current market prices + effective capacities ---
-    // Update crude price.
-    state.refinery.adu.crude_price = state.market.crude_price;
+    // Price each crude grade off the benchmark + its (static) grade differential.
+    for crude in &mut state.refinery.crudes {
+        crude.price = state.market.crude_price + crude.differential;
+    }
     // Update product prices and demands.
     for prod in &mut state.refinery.products {
         match prod.name.as_str() {

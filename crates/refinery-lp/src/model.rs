@@ -17,15 +17,29 @@ pub struct Stream {
     pub quality: Vec<f64>,
 }
 
-/// Atmospheric distillation: the single charge unit. Linear assay split.
+/// A crude grade (assay): its cut yields and its market price. The ADU can charge a
+/// blend across all available grades; the LP picks the optimal mix. Light/sweet grades
+/// yield more valuable light cuts but cost more; heavy grades are cheaper but make more
+/// low-value residue — the core crude-selection tradeoff.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Crude {
+    pub name: String,
+    /// £/bbl replacement cost (set by the market each tick = benchmark + `differential`).
+    pub price: f64,
+    /// Typical price offset to the crude benchmark (£/bbl): +ve premium (light/sweet),
+    /// −ve discount (heavy/sour). Static grade characteristic; the sim adds the benchmark.
+    pub differential: f64,
+    /// (stream index, volumetric yield) per bbl of this crude charged.
+    pub yields: Vec<(usize, f64)>,
+}
+
+/// Atmospheric distillation: the charge unit. Capacity + opex only; the assay (yields)
+/// now lives on each [`Crude`].
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Adu {
     pub name: String,
-    pub capacity: f64,    // bbl/day
-    pub opex: f64,        // £/bbl charged
-    pub crude_price: f64, // £/bbl REPLACEMENT cost (see formulation §6 note)
-    /// (stream index, volumetric yield) per bbl of crude charged.
-    pub yields: Vec<(usize, f64)>,
+    pub capacity: f64, // bbl/day
+    pub opex: f64,     // £/bbl charged
 }
 
 /// One fixed linear operating recipe of a conversion unit. Severity is the *identity*
@@ -81,6 +95,7 @@ pub struct Product {
 pub struct Refinery {
     pub properties: Vec<String>,
     pub streams: Vec<Stream>,
+    pub crudes: Vec<Crude>,
     pub adu: Adu,
     pub conversions: Vec<ConvUnit>,
     pub products: Vec<Product>,

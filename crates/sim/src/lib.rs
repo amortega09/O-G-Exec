@@ -46,12 +46,24 @@ mod tests {
     #[test]
     fn tick_advances_week() {
         let cfg = test_config();
-        let r = test_refinery();
-        let mut state = new_game(r, &cfg, 42);
+        let mut state = new_game(test_refinery(), &cfg, 42);
         let view = tick(&mut state, &[], &cfg);
         assert_eq!(view.week, 1);
-        assert!(view.weekly_margin > 0.0, "should have positive margin");
-        assert!(state.cash > cfg.starting_cash, "cash should grow on positive margin");
+    }
+
+    #[test]
+    fn plant_is_profitable_on_average() {
+        // A single week — or an unlucky market seed — can lose money; the plant must be
+        // fundamentally profitable across many markets and a year of operation.
+        let cfg = test_config();
+        let mut total = 0.0;
+        for seed in 0..20u64 {
+            let mut state = new_game(test_refinery(), &cfg, seed);
+            for _ in 0..52 {
+                total += tick(&mut state, &[PlayerAction::SetSeverity(0.4)], &cfg).weekly_margin;
+            }
+        }
+        assert!(total > 0.0, "plant should be net profitable on average, got £{total}");
     }
 
     #[test]

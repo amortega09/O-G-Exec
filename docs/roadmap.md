@@ -39,9 +39,17 @@ The architectural pivot from deterministic calculator to FM-style simulation.
 - [ ] Enabler: expose the LP's **real solved flows** through `GameView` (the schematic
   currently re-derives them in JS — see [app.js](../web/src/app.js) `renderSchematic`).
 
-### Phase D — multi-crude procurement
-Buy crude assays by price/yield/sulfur; the per-tick decision becomes "which barrel,"
-the real refinery game. LP already supports multiple crudes structurally.
+### Phase D — multi-crude procurement  ← IN PROGRESS
+- [x] **Multi-crude LP** — crudes are first-class assays ([model.rs](../crates/refinery-lp/src/model.rs)
+  `Crude`); the ADU blends across grades and the LP picks the mix. Each grade is priced
+  off the benchmark + a grade differential each tick. Two grades shipped (Brent Light,
+  Urals Heavy); `crude_mix`/`crude_prices` surfaced in the UI market panel.
+- [ ] **The real tradeoff needs increment 2:** crude *sulfur → product spec* coupling
+  and/or a residue-upgrading unit (coker/hydrocracker). Without them the LP just runs the
+  cheaper grade (heavy wins ~72%); with them, grade choice becomes a genuine, market- and
+  capex-dependent decision (the "heavy-light spread" bet from the design doc).
+- [ ] Explicit procurement (approve slate / buy cargoes with lead time) + a moving
+  heavy-light differential.
 
 ### Phase E — living market
 - [x] **Realistic market + shock events** — OU params recalibrated to historical Brent

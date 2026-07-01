@@ -22,7 +22,7 @@ pub fn phase0_refinery() -> Refinery {
     let streams = vec![
         Stream { name: "naphtha".into(),  sale_price: 70.0, quality: vec![70.0, 12.0,  0.0, 0.05] }, // petchem outlet
         Stream { name: "gasoil".into(),   sale_price: 0.0,  quality: vec![ 0.0,  0.0, 50.0, 0.60] }, // must be processed
-        Stream { name: "residue".into(),  sale_price: 55.0, quality: vec![ 0.0,  0.0,  0.0, 2.50] }, // fuel oil
+        Stream { name: "residue".into(),  sale_price: 50.0, quality: vec![ 0.0,  0.0,  0.0, 2.50] }, // fuel oil (discount to crude)
         Stream { name: "fcc_gaso".into(), sale_price: 0.0,  quality: vec![92.0,  8.0,  0.0, 0.10] },
         Stream { name: "lco".into(),      sale_price: 0.0,  quality: vec![ 0.0,  0.0, 45.0, 0.30] },
         Stream { name: "lpg".into(),      sale_price: 60.0, quality: vec![ 0.0,  0.0,  0.0, 0.00] },
@@ -34,13 +34,33 @@ pub fn phase0_refinery() -> Refinery {
         name: "ADU".into(),
         capacity: 100_000.0,
         opex: 1.5,
-        crude_price: 65.0,
-        yields: vec![
-            (idx("naphtha"), 0.25),
-            (idx("gasoil"), 0.45),
-            (idx("residue"), 0.30),
-        ],
     };
+
+    // Two grades: light/sweet costs more but yields more valuable light cuts; heavy/sour
+    // is cheaper but makes far more low-value residue. The LP blends them; which is best
+    // shifts with the crack spread and the heavy-light differential.
+    let crudes = vec![
+        Crude {
+            name: "Brent Light".into(),
+            price: 66.0,        // benchmark + differential
+            differential: 1.0,  // light/sweet premium; the solid default grade
+            yields: vec![
+                (idx("naphtha"), 0.25),
+                (idx("gasoil"), 0.46), // distillate-rich
+                (idx("residue"), 0.27),
+            ],
+        },
+        Crude {
+            name: "Urals Heavy".into(),
+            price: 60.0,
+            differential: -5.0, // heavy/sour discount: cheaper, but distillate-poor
+            yields: vec![
+                (idx("naphtha"), 0.17),
+                (idx("gasoil"), 0.40),
+                (idx("residue"), 0.42), // residue-heavy
+            ],
+        },
+    ];
 
     let fcc = ConvUnit {
         name: "FCC".into(),
@@ -97,7 +117,7 @@ pub fn phase0_refinery() -> Refinery {
         },
     ];
 
-    Refinery { properties, streams, adu, conversions: vec![fcc], products }
+    Refinery { properties, streams, crudes, adu, conversions: vec![fcc], products }
 }
 
 #[cfg(test)]

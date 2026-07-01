@@ -541,15 +541,29 @@ function renderMarket(view) {
   const gasol = view.market.gasoline_price;
   const diesel = view.market.diesel_price;
 
+  // Crude grades: show each grade's price and mark the one(s) the plant is running.
+  const running = new Set((view.crude_mix || []).map(([n]) => n));
+  const crudeRows = (view.crude_prices || []).map(([name, price]) => {
+    const on = running.has(name);
+    return `<div class="market-feed-row">
+      <div class="market-feed-meta">
+        <span class="market-feed-lbl">${name}${on ? ' <span style="color:#00e676">● running</span>' : ''}</span>
+        <span class="market-feed-sublbl">Crude grade</span>
+      </div>
+      <span class="market-feed-val mono" style="${on ? 'color:#00e676' : 'opacity:0.7'}">£${price.toFixed(2)}</span>
+    </div>`;
+  }).join('');
+
   container.innerHTML = `
     <div class="market-feed-row">
       <div class="market-feed-meta">
         <span class="market-feed-lbl">Brent Crude</span>
-        <span class="market-feed-sublbl">Base Input Cost</span>
+        <span class="market-feed-sublbl">Benchmark</span>
       </div>
       <span class="market-feed-val mono">£${brent.toFixed(2)}</span>
     </div>
-    
+    ${crudeRows}
+
     <div class="market-feed-row">
       <div class="market-feed-meta">
         <span class="market-feed-lbl">Gasoline (Premium)</span>

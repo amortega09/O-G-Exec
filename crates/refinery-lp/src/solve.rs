@@ -51,6 +51,7 @@ pub struct SolveResult {
     pub margin: f64, // £/day TRUE contribution margin (== finances.margin())
     pub finances: Finances,
     pub crude_charge: f64,
+    pub crude_mix: Vec<(String, f64)>, // (grade name, bbl/day charged)
     pub adu: UnitResult,
     pub conversions: Vec<UnitResult>,
     pub products: Vec<ProductResult>,
@@ -106,11 +107,15 @@ fn solve_with(
         vars.len() - 1
     };
 
-    // --- ADU charge variable -------------------------------------------------
-    let adu_obj = -(r.adu.crude_price + r.adu.opex);
-    let x_adu = add_var(&mut p, &mut vars, adu_obj);
-    for &(s, yld) in &r.adu.yields {
-        *bal[s].entry(x_adu).or_insert(0.0) += yld;
+    // --- Crude charge variables (one per grade; the LP blends them) ----------
+    let mut crude_vars: Vec<usize> = Vec::with_capacity(r.crudes.len());
+    for cr in &r.crudes {
+        // objective coefficient: −(grade price + ADU opex) per bbl charged
+        let id = add_var(&mut p, &mut vars, -(cr.price + r.adu.opex));
+        for &(s, yld) in &cr.yields {
+            *bal[s].entry(id).or_insert(0.0) += yld;
+        }
+        crude_vars.push(id);
     }
 
     // --- Conversion mode variables ------------------------------------------
@@ -159,9 +164,13 @@ fn solve_with(
         p.add_constraint(build_expr(terms, &vars), ComparisonOp::Eq, 0.0);
     }
 
-    // ADU capacity.
+    // ADU capacity: total crude charged across all grades <= cap.
     let adu_cap = cap_override(&r.adu.name).unwrap_or(r.adu.capacity);
-    p.add_constraint(build_expr(&one(x_adu), &vars), ComparisonOp::Le, adu_cap);
+    let mut adu_terms = BTreeMap::new();
+    for &id in &crude_vars {
+        adu_terms.insert(id, 1.0);
+    }
+    p.add_constraint(build_expr(&adu_terms, &vars), ComparisonOp::Le, adu_cap);
 
     // Conversion-unit capacity: sum of mode feeds <= cap.
     for (ui, unit) in r.conversions.iter().enumerate() {
@@ -214,7 +223,17 @@ fn solve_with(
     let sol = solve_problem(&p);
 
     // === Extract =============================================================
-    let crude_charge = sol.var_value(vars[x_adu]);
+    let mut crude_charge = 0.0;
+    let mut crude_cost = 0.0;
+    let mut crude_mix = Vec::new();
+    for (ci, cr) in r.crudes.iter().enumerate() {
+        let v = sol.var_value(vars[crude_vars[ci]]);
+        crude_charge += v;
+        crude_cost += v * cr.price;
+        if v > 1e-6 {
+            crude_mix.push((cr.name.clone(), v));
+        }
+    }
     let mut var_opex = crude_charge * r.adu.opex; // ADU opex; conversion opex added below
     let adu = UnitResult {
         name: r.adu.name.clone(),
@@ -276,7 +295,7 @@ fn solve_with(
     let finances = Finances {
         product_revenue,
         byproduct_revenue,
-        crude_cost: crude_charge * r.adu.crude_price,
+        crude_cost,
         opex: var_opex,
     };
     // The breakdown must reconcile with the LP objective (minus the tilt preference).
@@ -289,6 +308,7 @@ fn solve_with(
         margin: finances.margin(),
         finances,
         crude_charge,
+        crude_mix,
         adu,
         conversions,
         products,
@@ -318,6 +338,7 @@ impl SolveResult {
                 opex: self.finances.opex * f,
             },
             crude_charge: self.crude_charge * f,
+            crude_mix: self.crude_mix.iter().map(|(n, v)| (n.clone(), v * f)).collect(),
             adu: scale_unit(&self.adu),
             conversions: self.conversions.iter().map(scale_unit).collect(),
             products: self
@@ -332,12 +353,6 @@ impl SolveResult {
             sales: self.sales.iter().map(|(n, v)| (n.clone(), v * f)).collect(),
         }
     }
-}
-
-fn one(id: usize) -> BTreeMap<usize, f64> {
-    let mut m = BTreeMap::new();
-    m.insert(id, 1.0);
-    m
 }
 
 /// The single point of contact with the LP backend.

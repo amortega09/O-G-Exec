@@ -142,6 +142,9 @@ pub struct GameView {
     /// Realized execution efficiency this week (LP plan actually achieved, 0–1).
     pub execution_efficiency: f64,
     pub crude_charge: f64,
+    /// Crude grades the LP chose to run this week: (grade, bbl/day) + (grade, £/bbl).
+    pub crude_mix: Vec<(String, f64)>,
+    pub crude_prices: Vec<(String, f64)>,
     pub revenue: f64,
     pub crude_cost: f64,
     pub variable_opex: f64,
@@ -357,6 +360,13 @@ impl GameState {
             weekly_margin,
             execution_efficiency: self.last_execution_efficiency,
             crude_charge,
+            crude_mix: solve.map(|s| s.crude_mix.clone()).unwrap_or_default(),
+            crude_prices: self
+                .refinery
+                .crudes
+                .iter()
+                .map(|c| (c.name.clone(), c.price))
+                .collect(),
             revenue,
             crude_cost,
             variable_opex: var_opex,
