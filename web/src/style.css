@@ -645,6 +645,11 @@ html, body {
 .fcc-gaso-flow { stroke: #10b981; }
 .lco-flow { stroke: #06b6d4; }
 .byproducts-flow { stroke: #8b5cf6; }
+.hc-flow { stroke: #d500f9; }
+
+/* Units not yet built (e.g. the hydrocracker before its project completes). */
+.refinery-node.dormant { opacity: 0.28; }
+.refinery-node.dormant .node-price { fill: var(--text-muted, #888); }
 
 /* SVG Nodes styling */
 .refinery-node rect {

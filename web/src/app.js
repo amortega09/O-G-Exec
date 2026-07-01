@@ -413,8 +413,24 @@ function renderTrendElement(id, current, prev, inverse = false) {
 }
 
 // ── Render SVG Schematic (The Tactical Board) ──────────────────────────────
+function shortGrade(name) {
+  if (/light/i.test(name)) return 'LIGHT';
+  if (/heavy/i.test(name)) return 'HEAVY';
+  return name.slice(0, 6).toUpperCase();
+}
+
 function renderSchematic(view) {
   document.getElementById('schematic-crude-price').textContent = `£${view.market.crude_price.toFixed(2)}`;
+
+  // Crude node reflects the grade the LP is actually running.
+  const mix = view.crude_mix || [];
+  const totalCrude = mix.reduce((s, [, v]) => s + v, 0);
+  let gradeLabel = 'IDLE';
+  if (totalCrude > 1) {
+    const top = [...mix].sort((a, b) => b[1] - a[1])[0];
+    gradeLabel = top[1] / totalCrude > 0.85 ? shortGrade(top[0]) : 'BLEND';
+  }
+  document.getElementById('schematic-crude-grade').textContent = gradeLabel;
 
   // Real solved flows straight from the LP — no hardcoded yields.
   const flow = new Map((view.stream_production || []).map(([n, v]) => [n, v]));
@@ -445,6 +461,15 @@ function renderSchematic(view) {
   updateSchematicNodeClass('node-adu', 'ADU', view);
   updateSchematicNodeClass('node-fcc', 'FCC', view);
 
+  // Hydrocracker: dormant (dimmed) until the capital project builds it.
+  const hc = view.units.find(u => u.name === 'Hydrocracker');
+  const hcBuilt = hc && hc.capacity > 0;
+  const hcNode = document.getElementById('node-hydrocracker');
+  if (hcNode) hcNode.classList.toggle('dormant', !hcBuilt);
+  const hcUtilEl = document.getElementById('schematic-hc-util');
+  if (hcUtilEl) hcUtilEl.textContent = hcBuilt ? `${(hc.utilisation * 100).toFixed(0)}% Util` : 'not built';
+  if (hcBuilt) updateSchematicNodeClass('node-hydrocracker', 'Hydrocracker', view);
+
   // Flow-speed animations keyed to actual throughput.
   setPipeFlowSpeed('flow-crude', aduThroughput, 100000);
   setPipeFlowSpeed('flow-naphtha', prod('naphtha'), 30000);
@@ -454,6 +479,8 @@ function renderSchematic(view) {
   setPipeFlowSpeed('flow-fcc-gaso', prod('fcc_gaso'), 29000);
   setPipeFlowSpeed('flow-lco', prod('lco'), 15000);
   setPipeFlowSpeed('flow-fcc-byproducts', lpg + coke, 9000);
+  setPipeFlowSpeed('flow-residue-to-hc', hc ? hc.throughput : 0, 15000);
+  setPipeFlowSpeed('flow-hc-diesel', prod('hc_distillate'), 12000);
 }
 
 function updateSchematicNodeClass(svgId, unitName, view) {
@@ -583,11 +610,11 @@ function renderPnl(view) {
     </div>
     <div class="ledger-row">
       <span class="ledger-label">Finished Product Sales</span>
-      <span class="ledger-value credit">${formatMoney(view.revenue)}</span>
+      <span class="ledger-value credit">${formatMoney(view.product_revenue)}</span>
     </div>
     <div class="ledger-row">
       <span class="ledger-label">Raw Byproduct Sales</span>
-      <span class="ledger-value credit">+£0.0K</span>
+      <span class="ledger-value credit">${formatMoney(view.byproduct_revenue)}</span>
     </div>
     <div class="ledger-row">
       <span class="ledger-label">Crude Replacement Cost</span>

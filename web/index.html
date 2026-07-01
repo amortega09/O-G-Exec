@@ -179,7 +179,7 @@
                 <!-- Node Layout -->
                 <g id="node-crude" class="refinery-node supply" transform="translate(10, 150)">
                   <rect width="60" height="60" rx="8" />
-                  <text x="30" y="32" class="node-label">CRUDE</text>
+                  <text id="schematic-crude-grade" x="30" y="32" class="node-label">CRUDE</text>
                   <text id="schematic-crude-price" x="30" y="48" class="node-price mono">£65.00</text>
                 </g>
 
@@ -212,6 +212,17 @@
                   <text id="schematic-lpg-val" x="60" y="42" class="node-value-sub mono">LPG: 0</text>
                   <text id="schematic-residue-val" x="60" y="59" class="node-value-sub mono">Residue: 0</text>
                   <text id="schematic-coke-val" x="60" y="76" class="node-value-sub mono">Coke: 0</text>
+                </g>
+
+                <!-- Hydrocracker: dormant until the capital project builds it -->
+                <path d="M 200,280 L 200,357 L 230,357" class="pipe-track" />
+                <path d="M 320,357 L 460,357 L 460,190 L 500,190" class="pipe-track" />
+                <path id="flow-residue-to-hc" d="M 200,280 L 200,357 L 230,357" class="pipe-flow residue-flow" />
+                <path id="flow-hc-diesel" d="M 320,357 L 460,357 L 460,190 L 500,190" class="pipe-flow hc-flow" />
+                <g id="node-hydrocracker" class="refinery-node unit dormant" transform="translate(230, 330)">
+                  <rect width="90" height="55" rx="8" />
+                  <text x="45" y="26" class="node-label font-bold">HYDROCRACKER</text>
+                  <text id="schematic-hc-util" x="45" y="44" class="node-price mono">not built</text>
                 </g>
               </svg>
             </div>
