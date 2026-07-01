@@ -843,14 +843,24 @@ function renderProjects(view) {
     </div>
   `).join('');
 
-  // Available Projects
-  const available = view.available_projects.map(p => `
+  // Available Projects — with the TEA (NPV/IRR/payback) appraisal at forecast prices.
+  const available = view.available_projects.map(p => {
+    const good = p.npv > 0;
+    const irrTxt = Number.isFinite(p.irr) ? `${(p.irr * 100).toFixed(0)}%` : '—';
+    const payTxt = Number.isFinite(p.payback_years) ? `${p.payback_years.toFixed(1)}yr` : 'never';
+    const col = good ? '#00e676' : '#ff5252';
+    return `
     <div class="project-card">
       <div class="project-card-header">
         <span class="project-title">${p.name}</span>
         <span class="project-gain-badge">+${formatNum(p.capacity_gain)} bbl/d</span>
       </div>
-      <p class="project-desc">${p.description || `Expand capacity of ${p.unit_name} to raise production ceiling.`}</p>
+      <p class="project-desc">${p.description || `Expand capacity of ${p.unit_name}.`}</p>
+      <div class="tea-appraisal" style="display:flex;gap:12px;font-size:0.72rem;margin:6px 0;padding:6px 8px;background:rgba(255,255,255,0.03);border-left:3px solid ${col};">
+        <span>NPV <b style="color:${col}" class="mono">${formatMoney(p.npv)}</b></span>
+        <span>IRR <b class="mono">${irrTxt}</b></span>
+        <span>Payback <b class="mono">${payTxt}</b></span>
+      </div>
       <div class="project-footer">
         <span class="project-cost">${formatMoney(p.cost)}</span>
         <button class="btn btn-success btn-secondary"
@@ -858,8 +868,8 @@ function renderProjects(view) {
           APPROVE (Takes ${p.duration_weeks}w)
         </button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   const contentHtml = active + available;
   container.innerHTML = contentHtml || `<div style="color: var(--text-muted); font-size: 0.85rem; padding: 20px 0;">No active or available construction contracts.</div>`;

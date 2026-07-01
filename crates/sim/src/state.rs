@@ -206,6 +206,11 @@ pub struct AvailableProject {
     pub capacity_gain: f64,
     pub cost: f64,
     pub duration_weeks: u32,
+    // --- TEA appraisal (at forecast/long-run-mean prices) ---
+    pub incremental_annual_margin: f64,
+    pub npv: f64,
+    pub irr: f64, // annual fraction; NaN if not computable
+    pub payback_years: f64,
 }
 
 impl GameState {
@@ -316,6 +321,8 @@ impl GameState {
             .collect();
 
         let active_indices: Vec<usize> = self.projects.iter().map(|p| p.config_index).collect();
+        // TEA appraisal (NPV/IRR/payback) for the currently-offered projects.
+        let appraisals = crate::tea::appraise(self, cfg);
         let available_projects = cfg
             .projects
             .iter()
@@ -323,14 +330,21 @@ impl GameState {
             .filter(|(i, p)| {
                 p.available_after_week <= self.week && !active_indices.contains(i)
             })
-            .map(|(i, p)| AvailableProject {
-                config_index: i,
-                name: p.name.clone(),
-                description: p.description.clone(),
-                unit_name: p.unit_name.clone(),
-                capacity_gain: p.capacity_gain,
-                cost: p.cost,
-                duration_weeks: p.duration_weeks,
+            .map(|(i, p)| {
+                let a = appraisals.iter().find(|a| a.config_index == i);
+                AvailableProject {
+                    config_index: i,
+                    name: p.name.clone(),
+                    description: p.description.clone(),
+                    unit_name: p.unit_name.clone(),
+                    capacity_gain: p.capacity_gain,
+                    cost: p.cost,
+                    duration_weeks: p.duration_weeks,
+                    incremental_annual_margin: a.map(|a| a.incremental_annual_margin).unwrap_or(0.0),
+                    npv: a.map(|a| a.npv).unwrap_or(0.0),
+                    irr: a.map(|a| a.irr).unwrap_or(f64::NAN),
+                    payback_years: a.map(|a| a.payback_years).unwrap_or(f64::INFINITY),
+                }
             })
             .collect();
 

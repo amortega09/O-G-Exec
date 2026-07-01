@@ -10,6 +10,7 @@ pub mod equipment;
 pub mod finance;
 pub mod market;
 pub mod rng;
+pub mod tea;
 pub mod projects;
 pub mod state;
 pub mod tick;
